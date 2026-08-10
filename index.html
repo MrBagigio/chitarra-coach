@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Ukulele Coach</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Accordatore e percorso di studio per ukulele: accordi con diagrammi, cambi a tempo, ritmi di pennata. Funziona senza rete.">
+<meta name="theme-color" content="#14100d">
+<meta name="color-scheme" content="dark light">
+
+<!-- iOS: senza queste l'app aggiunta alla Home si apre come una scheda di Safari -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ukulele">
+<meta name="format-detection" content="telephone=no">
+
+<link rel="manifest" href="app.webmanifest">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body data-vista="oggi">
+
+<main id="contenuto" role="main"></main>
+
+<nav id="tabbar" aria-label="Sezioni"></nav>
+
+<noscript>
+  <p style="padding:1.5rem;color:#f4ece4">
+    Questa app ha bisogno di JavaScript: l'accordatore misura il suono del microfono
+    direttamente nel telefono, non c'è un server che possa farlo al posto tuo.
+  </p>
+</noscript>
+
+<script type="module" src="js/main.js"></script>
+
+<script>
+// Rete di sicurezza per gli aggiornamenti. NON è paranoia preventiva: è già successo.
+//
+// Dopo un rilascio, il telefono che ha l'app installata resta per un caricamento sotto il
+// service worker VECCHIO. Quello serve dalla cache i moduli che conosce e va in rete per
+// quelli nuovi: il risultato è un miscuglio di due versioni, un modulo che chiede un
+// export che nell'altra non esiste, e una pagina BIANCA senza spiegazione.
+//
+// Questo script è inline dentro index.html, che per le navigazioni si prende sempre dalla
+// rete: quindi è l'unico pezzo di codice garantito aggiornato, e può rimediare.
+(function () {
+  var CHIAVE = 'uke-riparazione';
+  function riparaUnaVolta(motivo) {
+    if (sessionStorage.getItem(CHIAVE)) return;      // una sola volta: mai un ciclo di ricariche
+    sessionStorage.setItem(CHIAVE, motivo);
+    var lavori = [];
+    if (navigator.serviceWorker) {
+      lavori.push(navigator.serviceWorker.getRegistrations()
+        .then(function (l) { return Promise.all(l.map(function (r) { return r.unregister(); })); }));
+    }
+    if (window.caches) {
+      lavori.push(caches.keys().then(function (n) { return Promise.all(n.map(function (k) { return caches.delete(k); })); }));
+    }
+    Promise.all(lavori).catch(function () {}).then(function () { location.reload(); });
+  }
+
+  window.addEventListener('error', function (e) {
+    var m = String((e && e.message) || '');
+    if (/module|import|export/i.test(m)) riparaUnaVolta('moduli incoerenti');
+  });
+
+  // Se dopo qualche secondo non è comparso niente, qualcosa è andato storto comunque.
+  setTimeout(function () {
+    var c = document.getElementById('contenuto');
+    if (c && c.children.length === 0) riparaUnaVolta('pagina rimasta vuota');
+  }, 4000);
+
+  if (sessionStorage.getItem(CHIAVE)) {
+    window.addEventListener('load', function () {
+      var c = document.getElementById('contenuto');
+      if (c && c.children.length) sessionStorage.removeItem(CHIAVE);
+    });
+  }
+})();
+</script>
+</body>
+</html>
