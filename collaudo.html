@@ -22,6 +22,11 @@
   .prova .dett { color: var(--dim); }
   #riassunto { font-size: 1.15rem; font-weight: 700; margin: 10px 0 18px; }
   .solo-falliti .prova.si { display: none; }
+  /* Le misure restano visibili anche col filtro: sono i numeri da cui si derivano le
+     soglie, e nasconderli col resto delle prove riuscite significa non poterle tarare. */
+  .solo-falliti .prova.si.misura { display: flex; }
+  .prova.misura .segno { color: var(--turchese); }
+  .prova.misura .dett { color: var(--testo); }
 </style>
 </head>
 <body>
@@ -53,8 +58,9 @@
     d.appendChild(s);
     g.prove.forEach((p) => {
       const r = document.createElement('div');
-      r.className = `prova ${p.esito ? 'si' : 'no'}`;
-      r.innerHTML = `<span class="segno">${p.esito ? '✓' : '✕'}</span><span>${p.titolo}${p.dettaglio ? ` <span class="dett">— ${p.dettaglio}</span>` : ''}</span>`;
+      r.className = `prova ${p.esito ? 'si' : 'no'}${p.misura ? ' misura' : ''}`;
+      const segno = p.misura ? '▸' : (p.esito ? '✓' : '✕');
+      r.innerHTML = `<span class="segno">${segno}</span><span>${p.titolo}${p.dettaglio ? ` <span class="dett">— ${p.dettaglio}</span>` : ''}</span>`;
       d.appendChild(r);
     });
     contenitore.appendChild(d);

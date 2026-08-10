@@ -1,142 +1,166 @@
-// Libreria accordi per ukulele in accordatura standard GCEA (soprano/concert/tenor).
+// Libreria accordi per chitarra in accordatura standard EADGBE.
 //
-// `tasti` è SEMPRE nell'ordine delle corde G C E A (come le vedi guardando il manico,
-// da quella più vicina al viso a quella più vicina al pavimento).
-//   -1 = corda smorzata, 0 = corda a vuoto, n = tasto n
-// `dita` usa la numerazione classica: 1 indice, 2 medio, 3 anulare, 4 mignolo, 0 nessuno.
-// `barre` = una sola dita che preme più corde: {tasto, da, a} con indici di corda 0..3.
+// `tasti` è SEMPRE nell'ordine delle corde dalla 6ª alla 1ª — E A D G B E — cioè da
+// sinistra a destra come nei diagrammi di tutti i libri, guardando la chitarra di fronte.
+//   -1 = corda smorzata (la ✕ sopra il capotasto), 0 = corda a vuoto, n = tasto n
+// `dita`: 1 indice, 2 medio, 3 anulare, 4 mignolo, 0 nessuno.
+// `barre` = un dito solo che preme più corde: {tasto, da, a} con indici di corda 0..5.
 //
-// Ogni diteggiatura qui dentro è verificata contro le note dell'accordo: il diagramma
+// Sulla chitarra le corde smorzate sono NORMALI, non un'eccezione: il Do e il La non
+// suonano il Mi basso, e suonarlo li fa diventare un'altra cosa. Sull'ukulele la ✕ era
+// una rarità; qui è metà libreria.
+//
+// Ogni diteggiatura è verificata contro le note dell'accordo dal collaudo: il diagramma
 // di un accordo sbagliato si impara in silenzio e non si disimpara più.
 
 import { classiAttese, nomeClasse, scomponi } from './theory.js';
 
-export const CORDE = ['G', 'C', 'E', 'A'];
+export const CORDE = ['E', 'A', 'D', 'G', 'B', 'E'];
+
+/** Come si chiamano per numero: la 6ª è il Mi basso, la 1ª è il cantino. */
+export const NUMERI_CORDA = ['6ª', '5ª', '4ª', '3ª', '2ª', '1ª'];
 
 /** Semitoni delle corde a vuoto rispetto a Do, per la verifica delle note. */
-export const CORDE_SEMITONI = [7, 0, 4, 9];
+export const CORDE_SEMITONI = [4, 9, 2, 7, 11, 4];
 
 const A = (nome, esteso, tasti, dita, extra = {}) =>
   ({ id: nome, nome, esteso, tasti, dita, ...extra });
 
 export const ACCORDI = [
-  // ── Maggiori ────────────────────────────────────────────────────────────────
-  A('C', 'Do maggiore', [0, 0, 0, 3], [0, 0, 0, 3], { difficolta: 1, famiglia: 'maggiore', suggerimento: 'Solo l\'anulare sul 3° tasto della corda A. È il primo accordo di tutti.' }),
-  A('F', 'Fa maggiore', [2, 0, 1, 0], [2, 0, 1, 0], { difficolta: 1, famiglia: 'maggiore', suggerimento: 'Indice sul 1° tasto della E, medio sul 2° della G. Le due corde di mezzo restano libere.' }),
-  A('G', 'Sol maggiore', [0, 2, 3, 2], [0, 1, 3, 2], { difficolta: 2, famiglia: 'maggiore', suggerimento: 'Un triangolo: indice C-2, medio A-2, anulare E-3. Tieni il polso basso.' }),
-  A('A', 'La maggiore', [2, 1, 0, 0], [2, 1, 0, 0], { difficolta: 1, famiglia: 'maggiore', suggerimento: 'Indice C-1, medio G-2: stessa forma di Fa spostata di una corda.' }),
-  A('D', 'Re maggiore', [2, 2, 2, 0], [1, 2, 3, 0], { difficolta: 3, famiglia: 'maggiore', suggerimento: 'Tre dita in fila sul 2° tasto. Se non ci stanno, prova indice+medio+anulare in diagonale o barra con l\'indice.' }),
-  A('E', 'Mi maggiore', [4, 4, 4, 2], [0, 0, 0, 1], { difficolta: 4, famiglia: 'maggiore', barre: { tasto: 4, da: 0, a: 2 }, suggerimento: 'Barra le prime tre corde al 4° tasto con l\'anulare e metti l\'indice su A-2.' }),
-  A('E-facile', 'Mi maggiore (versione facile)', [1, 4, 0, 2], [1, 4, 0, 2], { difficolta: 3, famiglia: 'maggiore', alias: 'E', suggerimento: 'Meno pieno ma molto più raggiungibile: indice G-1, mignolo C-4, medio A-2.' }),
-  A('Bb', 'Sib maggiore', [3, 2, 1, 1], [3, 2, 1, 1], { difficolta: 4, famiglia: 'maggiore', barre: { tasto: 1, da: 2, a: 3 }, suggerimento: 'Il primo mezzo-barré: indice steso su E e A al 1° tasto, medio C-2, anulare G-3.' }),
-  A('B', 'Si maggiore', [4, 3, 2, 2], [4, 3, 1, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 2, da: 2, a: 3 }, suggerimento: 'Stessa forma di Sib, un tasto più su.' }),
-  A('Eb', 'Mib maggiore', [3, 3, 3, 1], [2, 3, 4, 1], { difficolta: 4, famiglia: 'maggiore' }),
-  A('Ab', 'Lab maggiore', [5, 3, 4, 3], [4, 1, 3, 2], { difficolta: 5, famiglia: 'maggiore' }),
-  A('Db', 'Reb maggiore', [1, 1, 1, 4], [1, 1, 1, 4], { difficolta: 4, famiglia: 'maggiore', barre: { tasto: 1, da: 0, a: 2 } }),
-  A('F#', 'Fa# maggiore', [3, 1, 2, 1], [3, 1, 2, 1], { difficolta: 4, famiglia: 'maggiore', barre: { tasto: 1, da: 1, a: 3 } }),
-
-  // ── Minori ──────────────────────────────────────────────────────────────────
-  A('Am', 'La minore', [2, 0, 0, 0], [2, 0, 0, 0], { difficolta: 1, famiglia: 'minore', suggerimento: 'Un dito solo, il medio sulla G al 2° tasto. Il compagno naturale di Do.' }),
-  A('Dm', 'Re minore', [2, 2, 1, 0], [3, 2, 1, 0], { difficolta: 2, famiglia: 'minore', suggerimento: 'Indice E-1, medio C-2, anulare G-2: un piccolo grappolo in alto a sinistra.' }),
-  A('Em', 'Mi minore', [0, 4, 3, 2], [0, 4, 3, 2], { difficolta: 3, famiglia: 'minore', suggerimento: 'Una scaletta in diagonale: A-2, E-3, C-4.' }),
-  A('Gm', 'Sol minore', [0, 2, 3, 1], [0, 2, 3, 1], { difficolta: 3, famiglia: 'minore' }),
-  A('Cm', 'Do minore', [0, 3, 3, 3], [0, 1, 1, 1], { difficolta: 3, famiglia: 'minore', barre: { tasto: 3, da: 1, a: 3 } }),
-  A('Fm', 'Fa minore', [1, 0, 1, 3], [1, 0, 2, 4], { difficolta: 3, famiglia: 'minore' }),
-  A('Bm', 'Si minore', [4, 2, 2, 2], [4, 1, 1, 1], { difficolta: 4, famiglia: 'minore', barre: { tasto: 2, da: 1, a: 3 } }),
-  A('Bbm', 'Sib minore', [3, 1, 1, 1], [3, 1, 1, 1], { difficolta: 4, famiglia: 'minore', barre: { tasto: 1, da: 1, a: 3 } }),
-  A('C#m', 'Do# minore', [1, 1, 0, 4], [1, 1, 0, 4], { difficolta: 4, famiglia: 'minore' }),
-  A('Ebm', 'Mib minore', [3, 3, 2, 1], [4, 3, 2, 1], { difficolta: 4, famiglia: 'minore' }),
-  A('F#m', 'Fa# minore', [2, 1, 2, 4], [2, 1, 3, 4], { difficolta: 4, famiglia: 'minore' }),
-  A('G#m', 'Sol# minore', [1, 3, 4, 2], [1, 3, 4, 2], { difficolta: 5, famiglia: 'minore' }),
-
-  // ── Settime di dominante ────────────────────────────────────────────────────
-  A('C7', 'Do settima', [0, 0, 0, 1], [0, 0, 0, 1], { difficolta: 1, famiglia: 'settima', suggerimento: 'Come Do ma un dito solo al 1° tasto: chiede di andare verso Fa.' }),
-  A('G7', 'Sol settima', [0, 2, 1, 2], [0, 2, 1, 3], { difficolta: 2, famiglia: 'settima', suggerimento: 'Il triangolo di Sol capovolto. Tira verso Do.' }),
-  A('D7', 'Re settima', [2, 2, 2, 3], [1, 1, 1, 3], { difficolta: 4, famiglia: 'settima', barre: { tasto: 2, da: 0, a: 2 } }),
-  A('D7-facile', 'Re settima (versione facile)', [2, 0, 2, 0], [1, 0, 2, 0], {
-    difficolta: 2,
-    famiglia: 'settima',
-    omette: [0],
-    suggerimento: 'Due dita e via: indice G-2, medio E-2. Il Re non c\'è: restano terza, quinta e settima, e l\'orecchio mette la fondamentale da sé. È una scelta normale, non una scorciatoia — ma se il basso non c\'è nel gruppo, usa la versione a barré.',
-  }),
-  A('A7', 'La settima', [0, 1, 0, 0], [0, 1, 0, 0], { difficolta: 1, famiglia: 'settima', suggerimento: 'Un dito, indice su C-1. Porta a Re o a Re minore.' }),
-  A('E7', 'Mi settima', [1, 2, 0, 2], [1, 2, 0, 3], { difficolta: 3, famiglia: 'settima', suggerimento: 'La porta d\'ingresso di La minore.' }),
-  A('F7', 'Fa settima', [2, 3, 1, 3], [2, 3, 1, 4], { difficolta: 4, famiglia: 'settima' }),
-  A('B7', 'Si settima', [2, 3, 2, 2], [1, 3, 1, 1], { difficolta: 4, famiglia: 'settima', barre: { tasto: 2, da: 0, a: 3 }, suggerimento: 'Indice steso al 2° tasto su tutte, anulare sopra sulla C al 3°.' }),
-  A('Bb7', 'Sib settima', [1, 2, 1, 1], [1, 2, 1, 1], { difficolta: 4, famiglia: 'settima', barre: { tasto: 1, da: 0, a: 3 } }),
-  A('Eb7', 'Mib settima', [3, 3, 3, 4], [1, 1, 1, 4], { difficolta: 4, famiglia: 'settima', barre: { tasto: 3, da: 0, a: 2 } }),
-  A('Ab7', 'Lab settima', [1, 3, 2, 3], [1, 3, 2, 4], { difficolta: 5, famiglia: 'settima' }),
-  A('Db7', 'Reb settima', [1, 1, 1, 2], [1, 1, 1, 2], { difficolta: 4, famiglia: 'settima', barre: { tasto: 1, da: 0, a: 2 } }),
-  A('F#7', 'Fa# settima', [3, 4, 2, 4], [2, 3, 1, 4], { difficolta: 5, famiglia: 'settima' }),
-
-  // ── Minori settima ──────────────────────────────────────────────────────────
-  A('Am7', 'La minore settima', [0, 0, 0, 0], [0, 0, 0, 0], { difficolta: 1, famiglia: 'minore settima', suggerimento: 'Nessun dito: le quattro corde a vuoto sono già un accordo.' }),
-  A('Dm7', 'Re minore settima', [2, 2, 1, 3], [2, 3, 1, 4], { difficolta: 3, famiglia: 'minore settima' }),
-  A('Em7', 'Mi minore settima', [0, 2, 0, 2], [0, 1, 0, 2], { difficolta: 2, famiglia: 'minore settima' }),
-  A('Gm7', 'Sol minore settima', [0, 2, 1, 1], [0, 3, 1, 2], { difficolta: 3, famiglia: 'minore settima' }),
-  A('Cm7', 'Do minore settima', [3, 3, 3, 3], [1, 1, 1, 1], { difficolta: 3, famiglia: 'minore settima', barre: { tasto: 3, da: 0, a: 3 }, suggerimento: 'Barré pieno al 3° tasto: un solo dito steso su tutte e quattro.' }),
-  A('Bm7', 'Si minore settima', [2, 2, 2, 2], [1, 1, 1, 1], { difficolta: 3, famiglia: 'minore settima', barre: { tasto: 2, da: 0, a: 3 } }),
-  A('Fm7', 'Fa minore settima', [1, 3, 1, 3], [1, 3, 2, 4], { difficolta: 4, famiglia: 'minore settima' }),
-  A('Bbm7', 'Sib minore settima', [1, 1, 1, 1], [1, 1, 1, 1], { difficolta: 3, famiglia: 'minore settima', barre: { tasto: 1, da: 0, a: 3 } }),
-  A('F#m7', 'Fa# minore settima', [2, 4, 2, 4], [1, 3, 2, 4], { difficolta: 5, famiglia: 'minore settima' }),
-
-  // ── Maggiori settima ────────────────────────────────────────────────────────
-  A('Cmaj7', 'Do maggiore settima', [0, 0, 0, 2], [0, 0, 0, 2], { difficolta: 1, famiglia: 'maggiore settima' }),
-  A('Fmaj7', 'Fa maggiore settima', [2, 4, 1, 3], [2, 4, 1, 3], { difficolta: 4, famiglia: 'maggiore settima' }),
-  A('Gmaj7', 'Sol maggiore settima', [0, 2, 2, 2], [0, 1, 1, 1], { difficolta: 2, famiglia: 'maggiore settima', barre: { tasto: 2, da: 1, a: 3 } }),
-  A('Amaj7', 'La maggiore settima', [1, 1, 0, 0], [2, 1, 0, 0], { difficolta: 2, famiglia: 'maggiore settima' }),
-  A('Dmaj7', 'Re maggiore settima', [2, 2, 2, 4], [1, 1, 1, 4], { difficolta: 4, famiglia: 'maggiore settima', barre: { tasto: 2, da: 0, a: 2 } }),
-  A('Emaj7', 'Mi maggiore settima', [1, 3, 0, 2], [1, 3, 0, 2], { difficolta: 3, famiglia: 'maggiore settima' }),
-  A('Bbmaj7', 'Sib maggiore settima', [3, 2, 1, 0], [3, 2, 1, 0], { difficolta: 3, famiglia: 'maggiore settima' }),
-
-  // ── Sospese e seste (il colore) ─────────────────────────────────────────────
-  A('Csus4', 'Do sospeso quarta', [0, 0, 1, 3], [0, 0, 1, 3], { difficolta: 2, famiglia: 'sospesa' }),
-  A('Csus2', 'Do sospeso seconda', [0, 2, 3, 3], [0, 1, 2, 3], { difficolta: 3, famiglia: 'sospesa' }),
-  A('Dsus4', 'Re sospeso quarta', [0, 2, 3, 0], [0, 1, 2, 0], { difficolta: 2, famiglia: 'sospesa' }),
-  A('Dsus2', 'Re sospeso seconda', [2, 2, 0, 0], [1, 2, 0, 0], { difficolta: 2, famiglia: 'sospesa' }),
-  A('Asus4', 'La sospeso quarta', [2, 2, 0, 0], [1, 2, 0, 0], { difficolta: 2, famiglia: 'sospesa', alias: 'Dsus2' }),
-  A('Esus4', 'Mi sospeso quarta', [4, 4, 5, 2], [2, 3, 4, 1], { difficolta: 5, famiglia: 'sospesa' }),
-  A('C6', 'Do sesta', [0, 0, 0, 0], [0, 0, 0, 0], { difficolta: 1, famiglia: 'sesta', alias: 'Am7' }),
-  A('G6', 'Sol sesta', [0, 2, 0, 2], [0, 1, 0, 2], { difficolta: 2, famiglia: 'sesta', alias: 'Em7' }),
-  A('A6', 'La sesta', [2, 4, 2, 4], [1, 3, 2, 4], { difficolta: 4, famiglia: 'sesta' }),
-  A('Gsus4', 'Sol sospeso quarta', [0, 2, 3, 3], [0, 1, 2, 3], { difficolta: 3, famiglia: 'sospesa', alias: 'Csus2' }),
-  A('Fsus2', 'Fa sospeso seconda', [0, 0, 1, 3], [0, 0, 1, 3], { difficolta: 2, famiglia: 'sospesa', alias: 'Csus4' }),
-
-  // ── Minori seste ────────────────────────────────────────────────────────────
-  A('Am6', 'La minore sesta', [2, 4, 2, 3], [2, 4, 1, 3], { difficolta: 4, famiglia: 'minore sesta' }),
-  A('Dm6', 'Re minore sesta', [2, 2, 1, 2], [3, 2, 1, 4], { difficolta: 3, famiglia: 'minore sesta' }),
-  A('Em6', 'Mi minore sesta', [0, 1, 0, 2], [0, 1, 0, 2], { difficolta: 2, famiglia: 'minore sesta' }),
-
-  // ── Settime sospese: la settima che non decide se è allegra o triste ────────
-  A('C7sus4', 'Do settima sospesa', [0, 0, 1, 1], [0, 0, 1, 2], { difficolta: 2, famiglia: 'settima sospesa' }),
-  A('G7sus4', 'Sol settima sospesa', [0, 2, 1, 3], [0, 2, 1, 3], { difficolta: 3, famiglia: 'settima sospesa' }),
-  A('D7sus4', 'Re settima sospesa', [2, 2, 3, 3], [1, 2, 3, 4], { difficolta: 4, famiglia: 'settima sospesa' }),
-
-  // ── Nona aggiunta: il colore moderno a costo quasi zero ─────────────────────
-  A('Cadd9', 'Do con nona aggiunta', [0, 2, 0, 3], [0, 1, 0, 3], { difficolta: 2, famiglia: 'nona aggiunta' }),
-  A('Fadd9', 'Fa con nona aggiunta', [0, 0, 1, 0], [0, 0, 1, 0], { difficolta: 1, famiglia: 'nona aggiunta', suggerimento: 'Un dito solo, e suona molto più "grande" del Fa normale. Provalo al suo posto in un giro lento.' }),
-  A('Gadd9', 'Sol con nona aggiunta', [2, 2, 3, 2], [1, 2, 4, 3], { difficolta: 4, famiglia: 'nona aggiunta' }),
-  A('C9', 'Do nona', [0, 2, 0, 1], [0, 2, 0, 1], { difficolta: 2, famiglia: 'nona', suggerimento: 'Senza la fondamentale: sull\'ukulele si omette e l\'orecchio la mette da sé.' }),
-
-  // ── Diminuite ed eccedenti: passaggi, non destinazioni ──────────────────────
-  A('Cdim7', 'Do settima diminuita', [2, 3, 2, 3], [1, 3, 2, 4], { difficolta: 3, famiglia: 'diminuita', suggerimento: 'La stessa forma vale anche per Mib, Fa♯ e La diminuiti: la settima diminuita si ripete ogni tre tasti.' }),
-  A('C#dim7', 'Do# settima diminuita', [0, 1, 0, 1], [0, 1, 0, 2], { difficolta: 2, famiglia: 'diminuita', suggerimento: 'Vale anche per Mi, Sol e Sib diminuiti.' }),
-  A('Ddim7', 'Re settima diminuita', [1, 2, 1, 2], [1, 3, 2, 4], { difficolta: 3, famiglia: 'diminuita', suggerimento: 'Vale anche per Fa, Lab e Si diminuiti.' }),
-  A('Caug', 'Do eccedente', [1, 0, 0, 3], [1, 0, 0, 3], { difficolta: 2, famiglia: 'eccedente', suggerimento: 'La stessa forma è anche Mi e Sol♯ eccedenti: l\'eccedente si ripete ogni quattro tasti.' }),
-  A('Faug', 'Fa eccedente', [2, 1, 1, 0], [3, 1, 2, 0], { difficolta: 3, famiglia: 'eccedente' }),
-  A('Daug', 'Re eccedente', [3, 2, 2, 1], [4, 2, 3, 1], { difficolta: 4, famiglia: 'eccedente' }),
-  A('Ebaug', 'Mib eccedente', [0, 3, 3, 2], [0, 2, 3, 1], { difficolta: 3, famiglia: 'eccedente' }),
-
-  // ── Posizioni alte: stesso accordo, altro colore ────────────────────────────
-  A('C-alto', 'Do maggiore (5ª posizione)', [5, 4, 3, 3], [4, 3, 1, 2], { difficolta: 4, famiglia: 'maggiore', alias: 'C', posizione: 'alta', suggerimento: 'Stesse note del Do facile ma più squillanti: utile per far respirare un giro che si ripete.' }),
-  A('F-alto', 'Fa maggiore (5ª posizione)', [5, 5, 5, 3], [3, 3, 3, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'F', posizione: 'alta', barre: { tasto: 5, da: 0, a: 2 } }),
-  A('G-alto', 'Sol maggiore (forma di Fa col barré)', [4, 2, 3, 2], [3, 1, 2, 1], {
+  // ── Maggiori aperti ─────────────────────────────────────────────────────────
+  A('E', 'Mi maggiore', [0, 2, 2, 1, 0, 0], [0, 2, 3, 1, 0, 0], { difficolta: 2, famiglia: 'maggiore', suggerimento: 'Tre dita, tutte e sei le corde suonano: è l\'accordo più pieno che esista sulla chitarra. Medio e anulare al 2° tasto su 5ª e 4ª, indice al 1° sulla 3ª.' }),
+  A('A', 'La maggiore', [-1, 0, 2, 2, 2, 0], [0, 0, 1, 2, 3, 0], { difficolta: 2, famiglia: 'maggiore', suggerimento: 'Tre dita in fila al 2° tasto, dentro un solo spazio. Il Mi basso NON si suona: parti dalla 5ª.' }),
+  A('D', 'Re maggiore', [-1, -1, 0, 2, 3, 2], [0, 0, 0, 1, 3, 2], { difficolta: 2, famiglia: 'maggiore', suggerimento: 'Un triangolino sulle tre corde acute. Le due corde gravi restano zitte: se le suoni non è più un Re.' }),
+  A('G', 'Sol maggiore', [3, 2, 0, 0, 0, 3], [2, 1, 0, 0, 0, 3], { difficolta: 3, famiglia: 'maggiore', suggerimento: 'La mano si apre: medio sulla 6ª al 3°, indice sulla 5ª al 2°, anulare sulla 1ª al 3°. Tutte e sei suonano.' }),
+  A('C', 'Do maggiore', [-1, 3, 2, 0, 1, 0], [0, 3, 2, 0, 1, 0], { difficolta: 3, famiglia: 'maggiore', suggerimento: 'Una diagonale: anulare 5ª-3°, medio 4ª-2°, indice 2ª-1°. Il Mi basso resta fuori.' }),
+  A('F', 'Fa maggiore', [1, 3, 3, 2, 1, 1], [1, 3, 4, 2, 1, 1], {
     difficolta: 5,
     famiglia: 'maggiore',
-    posizione: 'mobile',
-    barre: { tasto: 2, da: 0, a: 3 },
-    suggerimento: 'È il Fa con il capotasto finto: indice steso al 2° tasto su tutte e quattro, e sopra la forma del Fa. Spostando questa forma di un tasto ottieni Sol♯, di due La, e così via — è il primo accordo davvero MOBILE che impari.',
+    barre: { tasto: 1, da: 0, a: 5 },
+    suggerimento: 'Il barré completo: l\'indice steso schiaccia tutte e sei le corde al 1° tasto, e sopra ci vai con la forma del Mi. È il muro contro cui sbatte chiunque, ed è normale che per settimane ronzi. Ruota l\'indice appena sul fianco esterno e tieni il pollice basso, dietro il manico.',
   }),
+  A('F-facile', 'Fa maggiore (versione a quattro corde)', [-1, -1, 3, 2, 1, 1], [0, 0, 3, 2, 1, 1], {
+    difficolta: 3,
+    famiglia: 'maggiore',
+    alias: 'F',
+    barre: { tasto: 1, da: 4, a: 5 },
+    suggerimento: 'Mezzo barré sulle due corde acute e via: suona un Fa vero, senza il basso. Serve per non fermare la canzone mentre il barré grande matura.',
+  }),
+  A('Bb', 'Sib maggiore', [-1, 1, 3, 3, 3, 1], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 1, da: 1, a: 5 }, suggerimento: 'Il barré della forma di La: indice al 1° tasto dalla 5ª in giù, e tre dita al 3°.' }),
+  A('B', 'Si maggiore', [-1, 2, 4, 4, 4, 2], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 2, da: 1, a: 5 }, suggerimento: 'Stessa forma del Sib spostata di due tasti. Più su vai, meno forza serve.' }),
+  A('Eb', 'Mib maggiore', [-1, -1, 1, 3, 4, 3], [0, 0, 1, 2, 4, 3], { difficolta: 4, famiglia: 'maggiore' }),
+  A('Ab', 'Lab maggiore', [4, 6, 6, 5, 4, 4], [1, 3, 4, 2, 1, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 4, da: 0, a: 5 } }),
+  A('Db', 'Reb maggiore', [-1, 4, 6, 6, 6, 4], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 4, da: 1, a: 5 } }),
+  A('F#', 'Fa# maggiore', [2, 4, 4, 3, 2, 2], [1, 3, 4, 2, 1, 1], { difficolta: 5, famiglia: 'maggiore', barre: { tasto: 2, da: 0, a: 5 } }),
+
+  // ── Minori ──────────────────────────────────────────────────────────────────
+  A('Em', 'Mi minore', [0, 2, 2, 0, 0, 0], [0, 2, 3, 0, 0, 0], { difficolta: 1, famiglia: 'minore', suggerimento: 'Due dita e suonano tutte e sei le corde: è il primo accordo della chitarra, e il più bello da tenere premuto senza motivo.' }),
+  A('Am', 'La minore', [-1, 0, 2, 2, 1, 0], [0, 0, 2, 3, 1, 0], { difficolta: 2, famiglia: 'minore', suggerimento: 'Come il Mi minore ma spostato di una corda, con l\'indice al 1° tasto della 2ª. Il Mi basso non si suona.' }),
+  A('Dm', 'Re minore', [-1, -1, 0, 2, 3, 1], [0, 0, 0, 2, 3, 1], { difficolta: 2, famiglia: 'minore', suggerimento: 'Il Re con l\'indice che scende di un tasto sul cantino. Solo quattro corde.' }),
+  A('Bm', 'Si minore', [-1, 2, 4, 4, 3, 2], [0, 1, 3, 4, 2, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 2, da: 1, a: 5 }, suggerimento: 'Il secondo barré che incontri, ed è quello che serve in mezzo pop italiano.' }),
+  A('Bm-facile', 'Si minore (versione a quattro corde)', [-1, -1, 4, 4, 3, 2], [0, 0, 3, 4, 2, 1], { difficolta: 3, famiglia: 'minore', alias: 'Bm', suggerimento: 'Le stesse note senza barré, suonando solo le quattro corde acute.' }),
+  A('F#m', 'Fa# minore', [2, 4, 4, 2, 2, 2], [1, 3, 4, 1, 1, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 2, da: 0, a: 5 }, suggerimento: 'Forma di Mi minore col barré: solo due dita in più dell\'indice. È il barré più facile di tutti — provalo prima del Fa.' }),
+  A('Cm', 'Do minore', [-1, 3, 5, 5, 4, 3], [0, 1, 3, 4, 2, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 3, da: 1, a: 5 } }),
+  A('Gm', 'Sol minore', [3, 5, 5, 3, 3, 3], [1, 3, 4, 1, 1, 1], { difficolta: 4, famiglia: 'minore', barre: { tasto: 3, da: 0, a: 5 } }),
+  A('Fm', 'Fa minore', [1, 3, 3, 1, 1, 1], [1, 3, 4, 1, 1, 1], { difficolta: 4, famiglia: 'minore', barre: { tasto: 1, da: 0, a: 5 } }),
+  A('C#m', 'Do# minore', [-1, 4, 6, 6, 5, 4], [0, 1, 3, 4, 2, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 4, da: 1, a: 5 } }),
+  A('Ebm', 'Mib minore', [-1, -1, 1, 3, 4, 2], [0, 0, 1, 3, 4, 2], { difficolta: 4, famiglia: 'minore' }),
+  A('G#m', 'Sol# minore', [4, 6, 6, 4, 4, 4], [1, 3, 4, 1, 1, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 4, da: 0, a: 5 } }),
+  A('Bbm', 'Sib minore', [-1, 1, 3, 3, 2, 1], [0, 1, 3, 4, 2, 1], { difficolta: 5, famiglia: 'minore', barre: { tasto: 1, da: 1, a: 5 } }),
+
+  // ── Settime di dominante ────────────────────────────────────────────────────
+  A('E7', 'Mi settima', [0, 2, 0, 1, 0, 0], [0, 2, 0, 1, 0, 0], { difficolta: 1, famiglia: 'settima', suggerimento: 'Il Mi maggiore a cui togli un dito. Tira verso il La e verso il La minore: è il blues in due dita.' }),
+  A('A7', 'La settima', [-1, 0, 2, 0, 2, 0], [0, 0, 2, 0, 3, 0], { difficolta: 2, famiglia: 'settima', suggerimento: 'Il La a cui togli il dito di mezzo. Porta al Re.' }),
+  A('D7', 'Re settima', [-1, -1, 0, 2, 1, 2], [0, 0, 0, 2, 1, 3], { difficolta: 2, famiglia: 'settima', suggerimento: 'Un triangolo capovolto rispetto al Re. Porta al Sol.' }),
+  A('G7', 'Sol settima', [3, 2, 0, 0, 0, 1], [3, 2, 0, 0, 0, 1], { difficolta: 3, famiglia: 'settima', suggerimento: 'Il Sol con il cantino che scende dal 3° al 1° tasto. Chiede il Do e non accetta un no.' }),
+  A('C7', 'Do settima', [-1, 3, 2, 3, 1, 0], [0, 3, 2, 4, 1, 0], { difficolta: 3, famiglia: 'settima', suggerimento: 'Il Do più il mignolo sulla 3ª al 3° tasto. La quinta non c\'è e non manca a nessuno.' }),
+  A('B7', 'Si settima', [-1, 2, 1, 2, 0, 2], [0, 2, 1, 3, 0, 4], { difficolta: 4, famiglia: 'settima', suggerimento: 'Quattro dita sparse ma nessun barré: è la porta d\'ingresso del Mi, e la usa mezzo blues.' }),
+  A('F7', 'Fa settima', [1, 3, 1, 2, 1, 1], [1, 3, 1, 2, 1, 1], { difficolta: 5, famiglia: 'settima', barre: { tasto: 1, da: 0, a: 5 } }),
+  A('Bb7', 'Sib settima', [-1, 1, 3, 1, 3, 1], [0, 1, 3, 1, 4, 1], { difficolta: 5, famiglia: 'settima', barre: { tasto: 1, da: 1, a: 5 } }),
+  A('Eb7', 'Mib settima', [-1, -1, 1, 3, 2, 3], [0, 0, 1, 3, 2, 4], { difficolta: 4, famiglia: 'settima' }),
+  A('Ab7', 'Lab settima', [4, 6, 4, 5, 4, 4], [1, 3, 1, 2, 1, 1], { difficolta: 5, famiglia: 'settima', barre: { tasto: 4, da: 0, a: 5 } }),
+  A('Db7', 'Reb settima', [-1, 4, 6, 4, 6, 4], [0, 1, 3, 1, 4, 1], { difficolta: 5, famiglia: 'settima', barre: { tasto: 4, da: 1, a: 5 } }),
+  A('F#7', 'Fa# settima', [2, 4, 2, 3, 2, 2], [1, 3, 1, 2, 1, 1], { difficolta: 5, famiglia: 'settima', barre: { tasto: 2, da: 0, a: 5 } }),
+
+  // ── Minori settima ──────────────────────────────────────────────────────────
+  A('Em7', 'Mi minore settima', [0, 2, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0], { difficolta: 1, famiglia: 'minore settima', suggerimento: 'Un dito solo, e suonano tutte e sei le corde. Nessun accordo rende tanto con così poco.' }),
+  A('Am7', 'La minore settima', [-1, 0, 2, 0, 1, 0], [0, 0, 2, 0, 1, 0], { difficolta: 1, famiglia: 'minore settima', suggerimento: 'Il La minore a cui togli il dito di mezzo: due dita.' }),
+  A('Dm7', 'Re minore settima', [-1, -1, 0, 2, 1, 1], [0, 0, 0, 3, 1, 1], { difficolta: 3, famiglia: 'minore settima', barre: { tasto: 1, da: 4, a: 5 }, suggerimento: 'Mezzo barré con l\'indice sulle due corde acute: è l\'allenamento onesto per il Fa.' }),
+  A('Bm7', 'Si minore settima', [-1, 2, 0, 2, 0, 2], [0, 2, 0, 3, 0, 4], { difficolta: 3, famiglia: 'minore settima', suggerimento: 'Il Si minore senza barré: tre dita a corde alterne, e le corde a vuoto in mezzo suonano.' }),
+  A('Gm7', 'Sol minore settima', [3, 5, 3, 3, 3, 3], [1, 3, 1, 1, 1, 1], { difficolta: 4, famiglia: 'minore settima', barre: { tasto: 3, da: 0, a: 5 } }),
+  A('Cm7', 'Do minore settima', [-1, 3, 5, 3, 4, 3], [0, 1, 4, 1, 3, 1], { difficolta: 5, famiglia: 'minore settima', barre: { tasto: 3, da: 1, a: 5 } }),
+  A('Fm7', 'Fa minore settima', [1, 3, 1, 1, 1, 1], [1, 3, 1, 1, 1, 1], { difficolta: 4, famiglia: 'minore settima', barre: { tasto: 1, da: 0, a: 5 } }),
+  A('F#m7', 'Fa# minore settima', [2, 4, 2, 2, 2, 2], [1, 3, 1, 1, 1, 1], { difficolta: 4, famiglia: 'minore settima', barre: { tasto: 2, da: 0, a: 5 } }),
+  A('Bbm7', 'Sib minore settima', [-1, 1, 3, 1, 2, 1], [0, 1, 3, 1, 2, 1], { difficolta: 5, famiglia: 'minore settima', barre: { tasto: 1, da: 1, a: 5 } }),
+
+  // ── Maggiori settima ────────────────────────────────────────────────────────
+  A('Cmaj7', 'Do maggiore settima', [-1, 3, 2, 0, 0, 0], [0, 3, 2, 0, 0, 0], { difficolta: 2, famiglia: 'maggiore settima', suggerimento: 'Il Do a cui togli l\'indice. Suona come un pomeriggio.' }),
+  A('Fmaj7', 'Fa maggiore settima', [-1, -1, 3, 2, 1, 0], [0, 0, 3, 2, 1, 0], { difficolta: 2, famiglia: 'maggiore settima', suggerimento: 'Il Fa senza barré e senza fatica: quattro corde, tre dita. Nei giri lenti sta al posto del Fa.' }),
+  A('Gmaj7', 'Sol maggiore settima', [3, 2, 0, 0, 0, 2], [3, 2, 0, 0, 0, 1], { difficolta: 3, famiglia: 'maggiore settima' }),
+  A('Amaj7', 'La maggiore settima', [-1, 0, 2, 1, 2, 0], [0, 0, 3, 1, 2, 0], { difficolta: 3, famiglia: 'maggiore settima' }),
+  A('Dmaj7', 'Re maggiore settima', [-1, -1, 0, 2, 2, 2], [0, 0, 0, 1, 1, 1], { difficolta: 3, famiglia: 'maggiore settima', barre: { tasto: 2, da: 3, a: 5 }, suggerimento: 'Un mezzo barré a tre corde: il primo passo verso il barré vero.' }),
+  A('Emaj7', 'Mi maggiore settima', [0, 2, 1, 1, 0, 0], [0, 3, 1, 2, 0, 0], { difficolta: 3, famiglia: 'maggiore settima' }),
+  A('Bbmaj7', 'Sib maggiore settima', [-1, 1, 3, 2, 3, 1], [0, 1, 4, 2, 3, 1], { difficolta: 5, famiglia: 'maggiore settima', barre: { tasto: 1, da: 1, a: 5 } }),
+
+  // ── Sospese ─────────────────────────────────────────────────────────────────
+  A('Dsus4', 'Re sospeso quarta', [-1, -1, 0, 2, 3, 3], [0, 0, 0, 1, 2, 4], { difficolta: 2, famiglia: 'sospesa', suggerimento: 'Il Re col mignolo aggiunto sul cantino. Alzarlo e toglierlo sopra un Re è metà del folk.' }),
+  A('Dsus2', 'Re sospeso seconda', [-1, -1, 0, 2, 3, 0], [0, 0, 0, 1, 2, 0], { difficolta: 2, famiglia: 'sospesa' }),
+  A('Asus4', 'La sospeso quarta', [-1, 0, 2, 2, 3, 0], [0, 0, 1, 2, 3, 0], { difficolta: 2, famiglia: 'sospesa' }),
+  A('Asus2', 'La sospeso seconda', [-1, 0, 2, 2, 0, 0], [0, 0, 1, 2, 0, 0], { difficolta: 2, famiglia: 'sospesa' }),
+  A('Esus4', 'Mi sospeso quarta', [0, 2, 2, 2, 0, 0], [0, 1, 2, 3, 0, 0], { difficolta: 2, famiglia: 'sospesa' }),
+  A('Csus2', 'Do sospeso seconda', [-1, 3, 0, 0, 1, 3], [0, 2, 0, 0, 1, 4], { difficolta: 3, famiglia: 'sospesa' }),
+  A('Csus4', 'Do sospeso quarta', [-1, 3, 3, 0, 1, 1], [0, 3, 4, 0, 1, 1], { difficolta: 3, famiglia: 'sospesa', barre: { tasto: 1, da: 4, a: 5 } }),
+  A('Gsus4', 'Sol sospeso quarta', [3, 3, 0, 0, 1, 3], [2, 3, 0, 0, 1, 4], { difficolta: 4, famiglia: 'sospesa' }),
+
+  // ── Settime sospese ─────────────────────────────────────────────────────────
+  A('A7sus4', 'La settima sospesa', [-1, 0, 2, 0, 3, 0], [0, 0, 2, 0, 3, 0], { difficolta: 2, famiglia: 'settima sospesa' }),
+  A('D7sus4', 'Re settima sospesa', [-1, -1, 0, 2, 1, 3], [0, 0, 0, 2, 1, 4], { difficolta: 3, famiglia: 'settima sospesa' }),
+  A('E7sus4', 'Mi settima sospesa', [0, 2, 0, 2, 0, 0], [0, 2, 0, 3, 0, 0], { difficolta: 2, famiglia: 'settima sospesa' }),
+  A('G7sus4', 'Sol settima sospesa', [3, 3, 0, 0, 1, 1], [2, 3, 0, 0, 1, 1], { difficolta: 4, famiglia: 'settima sospesa', barre: { tasto: 1, da: 4, a: 5 } }),
+
+  // ── Seste ───────────────────────────────────────────────────────────────────
+  A('G6', 'Sol sesta', [3, 2, 0, 0, 0, 0], [3, 2, 0, 0, 0, 0], { difficolta: 2, famiglia: 'sesta', suggerimento: 'Il Sol a cui togli il dito dal cantino: due dita e un colore diverso.' }),
+  A('C6', 'Do sesta', [-1, 3, 2, 2, 1, 0], [0, 4, 2, 3, 1, 0], { difficolta: 3, famiglia: 'sesta' }),
+  A('A6', 'La sesta', [-1, 0, 2, 2, 2, 2], [0, 0, 1, 1, 1, 1], { difficolta: 3, famiglia: 'sesta', barre: { tasto: 2, da: 2, a: 5 } }),
+  A('Em6', 'Mi minore sesta', [0, 2, 2, 0, 2, 0], [0, 2, 3, 0, 4, 0], { difficolta: 3, famiglia: 'minore sesta' }),
+  A('Am6', 'La minore sesta', [-1, 0, 2, 2, 1, 2], [0, 0, 2, 3, 1, 4], { difficolta: 3, famiglia: 'minore sesta' }),
+  A('Dm6', 'Re minore sesta', [-1, -1, 0, 2, 0, 1], [0, 0, 0, 2, 0, 1], { difficolta: 2, famiglia: 'minore sesta' }),
+
+  // ── Nona aggiunta e none ────────────────────────────────────────────────────
+  A('Cadd9', 'Do con nona aggiunta', [-1, 3, 2, 0, 3, 0], [0, 2, 1, 0, 3, 0], { difficolta: 3, famiglia: 'nona aggiunta', suggerimento: 'Il Do con il mignolo sulla 2ª al 3° tasto. Da qui al Sol e al Re si muovono solo due dita: è il trucco di mille canzoni.' }),
+  A('Gadd9', 'Sol con nona aggiunta', [3, 2, 0, 2, 0, 3], [2, 1, 0, 3, 0, 4], { difficolta: 4, famiglia: 'nona aggiunta' }),
+  A('Aadd9', 'La con nona aggiunta', [-1, 0, 2, 4, 2, 0], [0, 0, 1, 4, 2, 0], { difficolta: 3, famiglia: 'nona aggiunta' }),
+  A('Fadd9', 'Fa con nona aggiunta', [-1, -1, 3, 2, 1, 3], [0, 0, 3, 2, 1, 4], { difficolta: 3, famiglia: 'nona aggiunta' }),
+  A('C9', 'Do nona', [-1, 3, 2, 3, 3, 3], [0, 2, 1, 3, 3, 3], { difficolta: 4, famiglia: 'nona', barre: { tasto: 3, da: 3, a: 5 } }),
+  A('E9', 'Mi nona', [0, 2, 0, 1, 0, 2], [0, 2, 0, 1, 0, 3], { difficolta: 3, famiglia: 'nona' }),
+  A('A9', 'La nona', [-1, 0, 2, 4, 2, 3], [0, 0, 1, 3, 2, 4], { difficolta: 4, famiglia: 'nona' }),
+
+  // ── Diminuite ed eccedenti: passaggi, non destinazioni ──────────────────────
+  A('Cdim7', 'Do settima diminuita', [-1, -1, 1, 2, 1, 2], [0, 0, 1, 3, 2, 4], { difficolta: 3, famiglia: 'diminuita', suggerimento: 'La stessa forma vale anche per Mib, Fa♯ e La diminuiti: la settima diminuita si ripete ogni tre tasti.' }),
+  A('C#dim7', 'Do# settima diminuita', [-1, -1, 2, 3, 2, 3], [0, 0, 1, 3, 2, 4], { difficolta: 3, famiglia: 'diminuita', suggerimento: 'Vale anche per Mi, Sol e Sib diminuiti.' }),
+  A('Ddim7', 'Re settima diminuita', [-1, -1, 0, 1, 0, 1], [0, 0, 0, 2, 0, 3], { difficolta: 2, famiglia: 'diminuita', suggerimento: 'Vale anche per Fa, Lab e Si diminuiti.' }),
+  A('Caug', 'Do eccedente', [-1, 3, 2, 1, 1, 0], [0, 3, 2, 1, 1, 0], { difficolta: 3, famiglia: 'eccedente', barre: { tasto: 1, da: 3, a: 4 }, suggerimento: 'La stessa forma è anche Mi e Sol♯ eccedenti: l\'eccedente si ripete ogni quattro tasti.' }),
+  A('Faug', 'Fa eccedente', [-1, -1, 3, 2, 2, 1], [0, 0, 4, 2, 3, 1], { difficolta: 3, famiglia: 'eccedente' }),
+  A('Daug', 'Re eccedente', [-1, -1, 0, 3, 3, 2], [0, 0, 0, 2, 3, 1], { difficolta: 3, famiglia: 'eccedente' }),
+
+  // ── Quinte vuote: due dita, e sotto ci sta mezzo repertorio ─────────────────
+  A('E5', 'Mi quinta', [0, 2, 2, -1, -1, -1], [0, 1, 2, 0, 0, 0], { difficolta: 1, famiglia: 'quinta', suggerimento: 'Né allegro né triste: manca la terza, che è la nota che decide. Solo le tre corde gravi — le altre vanno smorzate col palmo.' }),
+  A('A5', 'La quinta', [-1, 0, 2, 2, -1, -1], [0, 0, 1, 2, 0, 0], { difficolta: 1, famiglia: 'quinta' }),
+  A('D5', 'Re quinta', [-1, -1, 0, 2, 3, -1], [0, 0, 0, 1, 3, 0], { difficolta: 2, famiglia: 'quinta' }),
+  A('G5', 'Sol quinta', [3, 5, 5, -1, -1, -1], [1, 3, 4, 0, 0, 0], { difficolta: 2, famiglia: 'quinta', suggerimento: 'Questa forma è MOBILE: spostala di un tasto e cambia nome senza cambiare dita. Al 5° tasto è La, al 7° Si.' }),
+
+  // ── Posizioni alte: stesso accordo, altro colore ────────────────────────────
+  A('G-barre', 'Sol maggiore (barré al 3°)', [3, 5, 5, 4, 3, 3], [1, 3, 4, 2, 1, 1], {
+    difficolta: 5,
+    famiglia: 'maggiore',
+    alias: 'G',
+    posizione: 'mobile',
+    barre: { tasto: 3, da: 0, a: 5 },
+    suggerimento: 'È il Fa spostato di due tasti: la forma del Mi con il capotasto finto. Impararne una vuol dire impararle tutte — al 5° tasto è La, al 7° Si.',
+  }),
+  A('A-barre', 'La maggiore (barré al 5°)', [5, 7, 7, 6, 5, 5], [1, 3, 4, 2, 1, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'A', posizione: 'mobile', barre: { tasto: 5, da: 0, a: 5 } }),
+  A('C-alto', 'Do maggiore (barré al 3°)', [-1, 3, 5, 5, 5, 3], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'C', posizione: 'mobile', barre: { tasto: 3, da: 1, a: 5 }, suggerimento: 'La forma del La col barré. Stesse note del Do aperto, un\'ottava di brillantezza in più.' }),
+  A('D-alto', 'Re maggiore (barré al 5°)', [-1, 5, 7, 7, 7, 5], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'D', posizione: 'mobile', barre: { tasto: 5, da: 1, a: 5 } }),
 ];
 
 /**
@@ -177,12 +201,11 @@ export function verificaDiteggiatura(acc) {
 }
 
 /**
- * Il nome vero dell'accordo, senza il suffisso della variante: E-facile → E, C-alto → C.
- * NON usa `alias`, che significa un'altra cosa: "suona le stesse note di", come C6 e Am7,
- * che sono due nomi legittimi e diversi dello stesso suono.
+ * Il nome vero dell'accordo, senza il suffisso della variante: F-facile → F, C-alto → C.
+ * NON usa `alias`, che significa un'altra cosa: "suona le stesse note di".
  */
 export function nomeCanonico(acc) {
-  return String(acc.id).replace(/-(facile|alto)$/, '');
+  return String(acc.id).replace(/-(facile|alto|barre)$/, '');
 }
 
 /** Come si scrive l'accordo sullo schermo: la variante non va mostrata come nome. */
@@ -241,4 +264,51 @@ export function etichettaDita(acc) {
 /** Tasto più alto usato: decide la finestra del diagramma. */
 export function tastoMassimo(acc) {
   return Math.max(0, ...acc.tasti.filter((t) => t > 0));
+}
+
+/**
+ * Quante corde si smorzano, e quali.
+ *
+ * Sulla chitarra non è un dettaglio: suonare il Mi basso su un Do lo trasforma in
+ * un Do con il basso sbagliato, e chi impara non se ne accorge da solo. La ✕ va detta,
+ * non solo disegnata.
+ */
+export function cordeSmorzate(acc) {
+  return acc.tasti.map((t, i) => (t < 0 ? NUMERI_CORDA[i] : null)).filter(Boolean);
+}
+
+/** Da quale corda parte la pennata: la prima che non è smorzata. */
+export function primaCordaSuonata(acc) {
+  const i = acc.tasti.findIndex((t) => t >= 0);
+  return i < 0 ? 0 : i;
+}
+
+/**
+ * Le due corde su cui cammina il pollice: `p` il basso, `P` il basso alternato.
+ *
+ * Il basso è la corda più grave che suona. L'alternato NON è "quella dopo": è la corda
+ * più grave, fra quelle sopra, che suona la QUINTA dell'accordo. È la scelta che fanno
+ * tutti da sempre e ha un motivo che si sente — fondamentale e quinta sono le due note
+ * che reggono l'accordo senza dirne il colore, quindi il basso può andare avanti e
+ * indietro senza mai contraddire quello che fanno le altre dita sopra.
+ *
+ * Su un Mi dà 6ª e 5ª, su un La 5ª e 4ª, su un Re 4ª e 3ª: esattamente quello che si
+ * legge in qualunque metodo. Non è stato scritto a mano — cade fuori da solo.
+ */
+export function bassiDi(acc) {
+  const p = primaCordaSuonata(acc);
+  const s = scomponi(nomeCanonico(acc));
+  const quinta = s ? (s.fondamentale + 7) % 12 : null;
+  let alternato = -1;
+  if (quinta !== null) {
+    for (let i = p + 1; i < acc.tasti.length; i += 1) {
+      if (acc.tasti[i] >= 0 && (CORDE_SEMITONI[i] + acc.tasti[i]) % 12 === quinta) { alternato = i; break; }
+    }
+  }
+  // Riserva: la corda suonante subito sopra. Serve per gli accordi senza quinta (le
+  // settime che la omettono) — lì il basso alternato è una convenzione, non una regola.
+  if (alternato < 0) {
+    for (let i = p + 1; i < acc.tasti.length; i += 1) if (acc.tasti[i] >= 0) { alternato = i; break; }
+  }
+  return { p, P: alternato < 0 ? p : alternato };
 }

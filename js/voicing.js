@@ -8,12 +8,57 @@
 // danno una nota dell'accordo, si combinano, e si tiene solo ciò che una mano umana può
 // premere davvero. Così ogni accordo ne ha, anche quelli che nessuno mette nei libri.
 
-import { classiAttese } from './theory.js';
+import { classiAttese, nomeClasse } from './theory.js';
 import { CORDE_SEMITONI } from './chords.js';
 
 const MAX_TASTO = 12;
 const MAX_APERTURA = 4;      // quanti tasti può coprire la mano
 const MAX_DITA = 4;
+const MINIME_SUONANTI = 4;   // sotto le quattro corde non è più un accordo, è un bicordo
+
+/**
+ * Prese che la mano non può fare, per quanto le note siano giuste.
+ *
+ * Il caso: due corde sullo stesso tasto minimo, e in mezzo corde premute PIÙ SU. Se il
+ * barré è possibile va bene — l'indice passa sotto e le altre dita gli stanno sopra, è
+ * esattamente come si suona un Do diminuito. Ma se in mezzo c'è una corda a VUOTO, il
+ * barré la spegnerebbe: allora il dito di destra deve raggiungere il tasto basso passando
+ * sotto le dita già premute più in alto, e quella è una contorsione, non una diteggiatura.
+ *
+ * Senza questo controllo la ricerca proponeva 1-0-3-2-1-x come "il Fa in posizione
+ * aperta": note giuste, mano impossibile.
+ *
+ * Attenzione a non confondere questo caso con il Sim7 (x20202), dove le corde in mezzo
+ * sono a vuoto ma nessuna è premuta più in alto: lì bastano tre dita separate e si suona
+ * tutti i giorni.
+ */
+function manoImpossibile(tasti) {
+  const premuti = tasti.map((t, i) => ({ t, i })).filter((x) => x.t > 0);
+  if (premuti.length < 2) return false;
+  const minimo = Math.min(...premuti.map((x) => x.t));
+  const suMinimo = premuti.filter((x) => x.t === minimo);
+  if (suMinimo.length < 2) return false;
+  const da = suMinimo[0].i;
+  const a = suMinimo[suMinimo.length - 1].i;
+  const inMezzo = tasti.slice(da + 1, a);
+  const barrabile = inMezzo.every((t) => t >= minimo);
+  if (barrabile) return false;                       // l'indice fa da capotasto: si suona
+  return inMezzo.some((t) => t > minimo);            // deve passare sotto: non si suona
+}
+
+/**
+ * Le corde smorzate stanno solo ai BORDI.
+ *
+ * Sulla chitarra smorzare è normale — il Do non suona il Mi basso — ma smorzare una corda
+ * IN MEZZO a due che suonano richiede di appoggiare un polpastrello a metà presa, e non è
+ * roba da chi sta imparando. Generando anche quelle, la ricerca produceva forme che sulla
+ * carta suonano l'accordo e sotto le dita non si tengono.
+ */
+function smorzateSoloAiBordi(tasti) {
+  const suonanti = tasti.map((t, i) => (t >= 0 ? i : -1)).filter((i) => i >= 0);
+  if (suonanti.length < MINIME_SUONANTI) return false;
+  return suonanti[suonanti.length - 1] - suonanti[0] === suonanti.length - 1;
+}
 
 /** Le note (in classi) che una diteggiatura produce. */
 function classiDi(tasti, corde) {
@@ -52,16 +97,18 @@ function costoDita(tasti) {
  * @returns {{tasti:number[], dita:number[], barre:object|null, posizione:number,
  *            altezza:number, aperte:number, etichetta:string}[]}
  */
-export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [67, 60, 64, 69], limite = 6 } = {}) {
+export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [40, 45, 50, 55, 59, 64], limite = 6 } = {}) {
   const atteso = classiAttese(nomeAccordo);
   if (!atteso) return [];
   const ammesse = new Set(atteso.ammesse);
   const obbligatorie = atteso.obbligatorie;
   const fondamentale = atteso.scomposto.fondamentale;
 
-  // Candidati per corda: ogni tasto che dia una nota dell'accordo.
+  // Candidati per corda: ogni tasto che dia una nota dell'accordo, più il silenzio.
+  // Il −1 non c'era: senza, sulla chitarra non si sarebbe potuto generare nemmeno il Do
+  // di tutti (x32010), perché la 6ª non si suona.
   const candidati = corde.map((base) => {
-    const lista = [];
+    const lista = [-1];
     for (let t = 0; t <= MAX_TASTO; t += 1) if (ammesse.has((base + t) % 12)) lista.push(t);
     return lista;
   });
@@ -70,7 +117,9 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
   const viste = new Set();
 
   const combina = (corda, presa) => {
-    if (corda === 4) {
+    if (corda === corde.length) {
+      if (!smorzateSoloAiBordi(presa)) return;
+      if (manoImpossibile(presa)) return;
       const premuti = presa.filter((t) => t > 0);
       if (premuti.length) {
         const apertura = Math.max(...premuti) - Math.min(...premuti);
@@ -93,7 +142,9 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
         posizione,
         altezza: altezzaMedia(presa, corde, midiCorde),
         aperte: presa.filter((t) => t === 0).length,
+        suonanti: presa.filter((t) => t >= 0).length,
         nDita: dita,
+        basso: bassoE(presa, corde, midiCorde),
         bassoFondamentale: bassoE(presa, corde, midiCorde) === fondamentale,
       });
       return;
@@ -102,11 +153,23 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
   };
   combina(0, []);
 
-  // Ordine: prima quello che si suona più facilmente e più in basso.
+  // Ordine: più in basso sul manico, poi la FONDAMENTALE AL BASSO, poi più corde che suonano.
+  //
+  // I due criteri in mezzo sono entrambi arrivati con la chitarra, e in quest'ordine:
+  //
+  //   Le corde che suonano contano più delle dita. Con il solo "meno dita", ereditato
+  //   dall'ukulele dove non si smorza niente, il Sol veniva rappresentato da x2000x — un
+  //   dito, quattro corde, tecnicamente un Sol e praticamente nessun Sol.
+  //
+  //   Ma il basso viene prima ancora. Contando solo le corde, vinceva 032010: un Do con
+  //   il Mi al basso. Suona sei corde ed è un accordo legittimo, però è un RIVOLTO, e
+  //   proporlo come "il Do" a chi impara è insegnare la cosa sbagliata. Le forme che
+  //   tutti conoscono hanno la fondamentale sotto — è per questo che sono quelle.
   trovate.sort((a, b) => (a.posizione - b.posizione)
+    || (b.bassoFondamentale - a.bassoFondamentale)
+    || (b.suonanti - a.suonanti)
     || (a.nDita - b.nDita)
-    || (b.aperte - a.aperte)
-    || (b.bassoFondamentale - a.bassoFondamentale));
+    || (b.aperte - a.aperte));
 
   // Una posizione per "zona" del manico: dieci varianti della stessa presa non servono.
   //
@@ -120,7 +183,13 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
     const zona = zonaDi(v);
     const attuale = perZona.get(zona);
     if (!attuale) { perZona.set(zona, v); return; }
-    if (zona > 0 && v.altezza > attuale.altezza && v.nDita <= 4) perZona.set(zona, v);
+    if (zona === 0 || v.nDita > 4) return;
+    // Stessa scala di valori dell'ordinamento: prima il basso giusto, poi quante corde
+    // suonano, e solo a parità di entrambi la più acuta — che è il motivo per cui
+    // questa funzione esiste.
+    const meglio = (x, y) => (x.bassoFondamentale !== y.bassoFondamentale ? x.bassoFondamentale
+      : (x.suonanti !== y.suonanti ? x.suonanti > y.suonanti : x.altezza > y.altezza));
+    if (meglio(v, attuale)) perZona.set(zona, v);
   });
 
   const perAltezza = [...perZona.values()].sort((a, b) => a.altezza - b.altezza);
@@ -155,7 +224,7 @@ function bassoE(tasti, corde, midiCorde) {
 
 /** Numeri delle dita plausibili: indice al tasto più basso, poi in ordine. */
 function numeraDita(tasti, barre) {
-  const dita = [0, 0, 0, 0];
+  const dita = tasti.map(() => 0);
   const premuti = tasti.map((t, i) => ({ t, i })).filter((x) => x.t > 0)
     .sort((a, b) => a.t - b.t || a.i - b.i);
   let prossimo = 1;
@@ -187,9 +256,16 @@ function zonaDi(v) {
   return Math.floor(v.posizione / 3) + 1;
 }
 
-function etichettaPosizione(v) {
-  if (zonaDi(v) === 0) return 'posizione aperta';
-  return `${v.posizione}ª posizione`;
+/**
+ * Il basso che NON è la fondamentale va detto.
+ *
+ * Sulla chitarra è normale che la corda più grave suoni la terza o la quinta invece della
+ * fondamentale: è un rivolto, suona diverso e in mezzo a un giro può essere proprio quello
+ * che serve. Ma chi impara deve saperlo, altrimenti crede che quella sia "la" forma.
+ */
+function etichettaPosizione(v, bemolli = false) {
+  const base = zonaDi(v) === 0 ? 'posizione aperta' : `${v.posizione}ª posizione`;
+  return v.bassoFondamentale ? base : `${base} · basso ${nomeClasse(v.basso, bemolli)}`;
 }
 
 /** Di quante ottave differiscono due posizioni: è la domanda "lo stesso giro più in alto". */

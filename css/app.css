@@ -547,6 +547,7 @@ select.campo { appearance: none; background-image: none; }
 .cella-conto { display: block; font-size: 0.66rem; color: var(--dim); margin-top: 3px; }
 .cella.s-pausa .cella-freccia { color: var(--linea); }
 .cella.s-chunk .cella-freccia { color: var(--rosso); }
+.cella.s-basso .cella-freccia { color: var(--dito-p); }
 .cella.s-su .cella-freccia { color: var(--turchese); }
 
 .es-battiti { display: flex; gap: 5px; margin-top: 12px; }

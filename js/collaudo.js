@@ -8,21 +8,21 @@
 // così il verdetto non dipende dalla stanza in cui sei.
 
 import {
-  ACCORDI, CORDE_SEMITONI, verificaDiteggiatura, nomeCanonico, accordo,
-  ditaRichieste, etichettaDita,
+  ACCORDI, CORDE, NUMERI_CORDA, CORDE_SEMITONI, verificaDiteggiatura, nomeCanonico, accordo,
+  ditaRichieste, etichettaDita, bassiDi, cordeSmorzate,
 } from './chords.js';
 import { icona, ICONA_PASSO } from './icone.js';
-import { RITMI, etichette, cordeDiCasella, classeDito } from './patterns.js';
+import { RITMI, etichette, cordeDiCasella, classeDito, usaBassoAlternato } from './patterns.js';
 import { diagramma, legendaDita } from './diagram.js';
 import { BRANI, accordiDi, branoTrasportato, branoSeEsiste } from './songs.js';
 import { LIVELLI, PASSI } from './curriculum.js';
 import { ACCORDATURE, accordatura } from './tunings.js';
 import { classiAttese, scomponi, trasponi, classeNota, tonalitaProbabile } from './theory.js';
 import {
-  Rilevatore, centesimi, decisioneDisplay, spuntaDaTogliere, msDentroFinestra,
+  Rilevatore, centesimi, hzDaMidi, decisioneDisplay, spuntaDaTogliere, msDentroFinestra,
 } from './pitch.js';
 import {
-  Ascoltatore, classifica, verificabilita, energiaEstranea, SOGLIA_ESTRANEA,
+  Ascoltatore, classifica, verificabilita, energiaEstranea, SOGLIA_ESTRANEA, FFT_ACCORDO,
 } from './chroma.js';
 import { Metronomo, bufferCorda } from './audio.js';
 import * as audio from './audio.js';
@@ -45,6 +45,17 @@ function contestoPer(g) {
     asincrono: null,
     ok(titolo, condizione, dettaglio = '') {
       g.prove.push({ titolo, esito: !!condizione, dettaglio: condizione ? '' : dettaglio });
+    },
+    /**
+     * Un numero da leggere, non una prova da superare.
+     *
+     * Serve per derivare le soglie invece di copiarle: una soglia si sceglie GUARDANDO
+     * come sono distribuite le misure vere, e per guardarle bisogna che compaiano anche
+     * quando va tutto bene. Un collaudo che mostra solo i fallimenti nasconde
+     * esattamente i dati che servono a tararlo.
+     */
+    misura(titolo, valore) {
+      g.prove.push({ titolo, esito: true, dettaglio: String(valore), misura: true });
     },
     uguale(titolo, avuto, atteso) {
       const e = JSON.stringify(avuto) === JSON.stringify(atteso);
@@ -72,10 +83,31 @@ gruppo('Accordi — le note sono quelle dichiarate', (t) => {
   });
 
   ACCORDI.forEach((a) => {
-    t.ok(`${a.id}: 4 corde`, a.tasti.length === 4 && a.dita.length === 4, `tasti ${a.tasti.length}, dita ${a.dita.length}`);
+    t.ok(`${a.id}: ${CORDE.length} corde`,
+      a.tasti.length === CORDE.length && a.dita.length === CORDE.length,
+      `tasti ${a.tasti.length}, dita ${a.dita.length}`);
     t.ok(`${a.id}: tasti plausibili`, a.tasti.every((x) => x >= -1 && x <= 12), JSON.stringify(a.tasti));
     t.ok(`${a.id}: difficoltà 1–5`, a.difficolta >= 1 && a.difficolta <= 5, String(a.difficolta));
     t.ok(`${a.id}: ha una famiglia`, !!a.famiglia, 'campo famiglia mancante');
+  });
+
+  // La mano ci arriva: quattro tasti di apertura sono già il limite di chi impara.
+  ACCORDI.forEach((a) => {
+    const premuti = a.tasti.filter((x) => x > 0);
+    if (!premuti.length) return;
+    const apertura = Math.max(...premuti) - Math.min(...premuti);
+    t.ok(`${a.id}: apertura della mano sostenibile`, apertura <= 3, `${apertura} tasti`);
+  });
+
+  // Le corde smorzate stanno ai bordi. Smorzarne una IN MEZZO significa appoggiare un
+  // polpastrello a metà presa: esiste, ma non in una libreria per chi comincia — e
+  // soprattutto non senza dirlo.
+  ACCORDI.forEach((a) => {
+    const suonanti = a.tasti.map((x, i) => (x >= 0 ? i : -1)).filter((i) => i >= 0);
+    const contigue = suonanti[suonanti.length - 1] - suonanti[0] === suonanti.length - 1;
+    t.ok(`${a.id}: le corde smorzate stanno ai bordi`, contigue,
+      `smorzate ${cordeSmorzate(a).join(' ')} su ${JSON.stringify(a.tasti)}`);
+    t.ok(`${a.id}: almeno tre corde suonano`, suonanti.length >= 3, `${suonanti.length}`);
   });
 
   ACCORDI.forEach((a) => {
@@ -94,7 +126,8 @@ gruppo('Accordi — le note sono quelle dichiarate', (t) => {
     const { tasto, da, a: fine } = a.barre;
     const dentro = a.tasti.slice(da, fine + 1);
     t.ok(`${a.id}: il barré ha senso`,
-      da >= 0 && fine <= 3 && da < fine && dentro.every((x) => x >= tasto) && dentro.includes(tasto),
+      da >= 0 && fine <= CORDE.length - 1 && da < fine
+        && dentro.every((x) => x >= tasto) && dentro.includes(tasto),
       `barré al ${tasto} su corde ${da}–${fine}, tasti ${JSON.stringify(dentro)}`);
   });
 
@@ -122,7 +155,7 @@ gruppo('Accordi — le note sono quelle dichiarate', (t) => {
 
 gruppo('Ritmi — la griglia torna', (t) => {
   const visti = new Set();
-  const validiPenna = new Set(['giu', 'su', 'chunk', '-']);
+  const validiPenna = new Set(['giu', 'su', 'chunk', 'basso', '-']);
   RITMI.forEach((r) => {
     t.ok(`id unico: ${r.id}`, !visti.has(r.id), 'duplicato');
     visti.add(r.id);
@@ -136,6 +169,14 @@ gruppo('Ritmi — la griglia torna', (t) => {
     } else {
       const strani = r.slot.filter((s) => s !== '-' && cordeDiCasella(s).length === 0);
       t.ok(`${r.id}: dita valide`, strani.length === 0, strani.join(','));
+      // Il pollice non ha una corda fissa: le sue caselle vanno risolte contro l'accordo.
+      // Se la risoluzione desse la stessa corda per 'p' e 'P', il basso alternato non
+      // alternerebbe niente e lo schema Travis sarebbe un pollice fermo con un nome grosso.
+      if (usaBassoAlternato(r)) {
+        const bassi = bassiDi(accordo('E'));
+        t.ok(`${r.id}: il basso alternato va su un'altra corda`, bassi.p !== bassi.P,
+          `p=${bassi.p} P=${bassi.P}`);
+      }
     }
     t.ok(`${r.id}: ha una spiegazione`, !!r.testo && r.testo.length > 30);
   });
@@ -259,11 +300,27 @@ gruppo('Teoria — i nomi si leggono e si trasportano', (t) => {
 
 gruppo('Accordature', (t) => {
   ACCORDATURE.forEach((a) => {
-    t.ok(`${a.id}: 4 corde`, a.corde.length === 4);
-    t.ok(`${a.id}: note plausibili`, a.corde.every((c) => c.midi >= 40 && c.midi <= 80));
+    t.ok(`${a.id}: ${CORDE.length} corde`, a.corde.length === CORDE.length, `${a.corde.length}`);
+    t.ok(`${a.id}: note plausibili`, a.corde.every((c) => c.midi >= 36 && c.midi <= 70),
+      a.corde.map((c) => c.midi).join(' '));
+    // Su una chitarra le corde salgono sempre dalla 6ª alla 1ª: nessuna accordatura
+    // rientrante come sull'ukulele, dove la G era più acuta della C.
+    t.ok(`${a.id}: le corde salgono dalla 6ª alla 1ª`,
+      a.corde.every((c, i) => i === 0 || c.midi >= a.corde[i - 1].midi),
+      a.corde.map((c) => c.etichetta).join(' '));
   });
-  t.uguale('la standard è GCEA', accordatura('gcea').corde.map((c) => c.etichetta), ['G', 'C', 'E', 'A']);
-  t.uguale('la G standard è più acuta della C', accordatura('gcea').corde[0].midi > accordatura('gcea').corde[1].midi, true);
+  t.uguale('la standard è EADGBE', accordatura('eadgbe').corde.map((c) => c.etichetta), ['E', 'A', 'D', 'G', 'B', 'E']);
+
+  // Il numero che decide mezzo programma: il Mi basso a 82,41 Hz. Se un giorno qualcuno
+  // lo cambia per sbaglio, la banda di analisi non lo copre più e la corda sparisce.
+  const mi = hzDaMidi(accordatura('eadgbe').corde[0].midi);
+  t.ok('il Mi basso sta a 82,4 Hz', Math.abs(mi - 82.41) < 0.05, `${mi.toFixed(2)} Hz`);
+  const cantino = hzDaMidi(accordatura('eadgbe').corde[5].midi);
+  t.ok('fra Mi basso e Mi cantino ci sono due ottave', Math.abs(cantino / mi - 4) < 0.01,
+    `${(cantino / mi).toFixed(3)}×`);
+  // Il Drop D è la nota più grave che l'app deve saper leggere: la banda parte sotto.
+  const drop = hzDaMidi(accordatura('dropd').corde[0].midi);
+  t.ok('il Re del Drop D sta a 73,4 Hz', Math.abs(drop - 73.42) < 0.05, `${drop.toFixed(2)} Hz`);
 });
 
 // ── G. Rilevatore di altezza (audio sintetico) ───────────────────────────────
@@ -375,18 +432,27 @@ gruppo('Accordatore — quanto sbaglia, in centesimi', (t) => {
   t.asincrono = async () => {
     const ctx = await preparaContesto(t);
     if (!ctx) return;
+    // Le sei corde vere, una per una. La prima riga è la ragione per cui esiste questo
+    // gruppo: con la banda dell'ukulele (che partiva da 240 Hz) le prime tre corde della
+    // chitarra non esistevano proprio, e un accordatore che non vede il Mi basso è un
+    // accordatore che non accorda una chitarra.
     const casi = [
-      ['La4 puro', 440, PURO, 0],
-      ['Do4 puro (era letto 87 Hz)', 261.63, PURO, 0],
-      ['Sol3 puro (low-G)', 196.0, PURO, 0],
-      ['Re3 puro (baritono)', 146.83, PURO, 0],
-      ['Do4 pizzicato, 2° armonico dominante', 261.63, PIZZICATO, 0],
-      ['Mi4 pizzicato', 329.63, PIZZICATO, 0],
-      ['Sol4 pizzicato', 392.0, PIZZICATO, 0],
-      ['La4 −30 centesimi', 440 * 2 ** (-30 / 1200), PIZZICATO, 0],
-      ['Do4 +7 centesimi', 261.63 * 2 ** (7 / 1200), PIZZICATO, 0],
-      ['Do4 con rumore', 261.63, PIZZICATO, 0.08],
-      ['La4 con molto rumore', 440, PIZZICATO, 0.18],
+      ['Mi2 basso a vuoto (82,41 Hz)', 82.41, PIZZICATO, 0],
+      ['La2 a vuoto (110 Hz)', 110.0, PIZZICATO, 0],
+      ['Re3 a vuoto (146,83)', 146.83, PIZZICATO, 0],
+      ['Sol3 a vuoto (196)', 196.0, PIZZICATO, 0],
+      ['Si3 a vuoto (246,94)', 246.94, PIZZICATO, 0],
+      ['Mi4 cantino a vuoto (329,63)', 329.63, PIZZICATO, 0],
+      ['Re2 del Drop D (73,42) — la nota più grave che deve leggere', 73.42, PIZZICATO, 0],
+      ['Mib2 di mezzo tono sotto (77,78)', 77.78, PIZZICATO, 0],
+      ['Mi2 puro, senza armonici', 82.41, PURO, 0],
+      ['Mi2 con il 2° armonico più forte della fondamentale', 82.41, PIZZICATO, 0],
+      ['Mi2 −30 centesimi (corda calata)', 82.41 * 2 ** (-30 / 1200), PIZZICATO, 0],
+      ['La2 +12 centesimi (corda crescente)', 110.0 * 2 ** (12 / 1200), PIZZICATO, 0],
+      ['Mi2 con rumore di stanza', 82.41, PIZZICATO, 0.08],
+      ['La4 di riferimento (440)', 440, PURO, 0],
+      ['Mi5 al 12° tasto del cantino (659,26)', 659.26, PIZZICATO, 0],
+      ['Sol3 con molto rumore', 196.0, PIZZICATO, 0.18],
     ];
     for (const [nome, hz, armonici, rumore] of casi) {
       const b = banco(ctx, hz, armonici, rumore);
@@ -416,7 +482,7 @@ gruppo('Accordatore — quanto sbaglia, in centesimi', (t) => {
 
 function bancoAccordo(ctx, frequenze, { spente = [] } = {}) {
   const an = ctx.createAnalyser();
-  an.fftSize = 4096;
+  an.fftSize = FFT_ACCORDO;
   an.smoothingTimeConstant = 0;
   const g = ctx.createGain();
   g.gain.value = 0.28;
@@ -447,8 +513,8 @@ gruppo('Ascolto accordo — trova la corda spenta', (t) => {
   t.asincrono = async () => {
     const ctx = await preparaContesto(t);
     if (!ctx) return;
-    const tun = accordatura('gcea');
-    const campione = ['C', 'Am', 'F', 'G', 'G7', 'Dm', 'Em', 'E7', 'Bb', 'B7', 'D', 'C7', 'Cmaj7', 'Dm7'];
+    const tun = accordatura('eadgbe');
+    const campione = ['E', 'Em', 'A', 'Am', 'D', 'Dm', 'G', 'C', 'E7', 'A7', 'D7', 'G7', 'Am7', 'Cmaj7'];
 
     let riconosciuti = 0;
     for (const id of campione) {
@@ -461,8 +527,8 @@ gruppo('Ascolto accordo — trova la corda spenta', (t) => {
       const v = asc.verifica(freq);
       const cls = classifica(asc.chroma(), campione);
       b.chiudi();
-      t.ok(`${id}: tutte e quattro le note presenti`, v.ok,
-        `trovate ${v.quante}/4, forze ${v.forza.map((f) => (f === null ? '–' : f.toFixed(0))).join(' ')}`);
+      t.ok(`${id}: nessuna corda risulta muta`, v.ok,
+        `giudicabili ${v.quanteGiudicabili}, forze ${v.forza.map((f) => (f === null ? '–' : f.toFixed(0))).join(' ')}`);
       // Il riconoscimento è ambiguo per costruzione: si misura, non si pretende.
       const primo = cls[0]?.nome;
       const stessoSuono = primo && JSON.stringify(classiAttese(primo)?.ammesse.slice().sort())
@@ -475,14 +541,20 @@ gruppo('Ascolto accordo — trova la corda spenta', (t) => {
     // La prova che conta davvero: ogni corda che il programma DICHIARA di saper giudicare,
     // se la spegni, deve risultare assente. Le altre le dichiara non giudicabili e non
     // vengono messe alla prova — è il patto, e questo collaudo verifica che sia mantenuto.
+    //
+    // Sulla chitarra questo patto costa più che sull'ukulele, e va detto: con sei corde
+    // gli unisoni e le ottave fra corde sono la norma, non l'eccezione. In un Mi maggiore
+    // suonano tre Mi e due Si: le corde davvero giudicabili una per una sono tre su sei.
+    // Il programma lo DICHIARA invece di dare tre verdi finti.
     let provate = 0;
     let scoperte = 0;
-    const CORDE_NOME = ['G', 'C', 'E', 'A'];
-    for (const id of ['C', 'F', 'G', 'G7', 'Dm', 'Em', 'E7', 'Bb', 'D', 'Am', 'B7', 'Cmaj7']) {
+    let giudicabiliTotali = 0;
+    for (const id of ['E', 'Em', 'A', 'Am', 'D', 'Dm', 'G', 'C', 'E7', 'A7', 'D7', 'G7']) {
       const acc = accordo(id);
       const freq = hzDi(acc, tun);
       const giudicabili = verificabilita(freq);
-      for (let corda = 0; corda < 4; corda += 1) {
+      giudicabiliTotali += giudicabili.filter((g) => g.verificabile).length;
+      for (let corda = 0; corda < CORDE.length; corda += 1) {
         if (!giudicabili[corda].verificabile) continue;
         const b = bancoAccordo(ctx, freq, { spente: [corda] });
         await attendiAudio(ctx, 150);
@@ -493,15 +565,17 @@ gruppo('Ascolto accordo — trova la corda spenta', (t) => {
         provate += 1;
         const vista = v.mancanti[corda];
         if (vista) scoperte += 1;
-        t.ok(`${id}: con la corda ${CORDE_NOME[corda]} spenta se ne accorge`, vista,
+        t.ok(`${id}: con la ${NUMERI_CORDA[corda]} spenta se ne accorge`, vista,
           `forze ${v.forza.map((f) => (f === null ? '–' : f.toFixed(0))).join(' ')}`);
       }
     }
     t.ok(`corde spente scoperte: tutte e ${provate}`, scoperte === provate, `${scoperte}/${provate}`);
+    t.misura('corde giudicabili una per una, su 12 accordi da 6 corde',
+      `${giudicabiliTotali} su 72 — le altre suonano la stessa nota di un'altra corda`);
 
     // E il contrario: sull'accordo suonato bene non deve accusare nessuno.
     let falsiAllarmi = 0;
-    for (const id of ['C', 'F', 'G', 'Bb', 'Dm7', 'E7']) {
+    for (const id of ['E', 'Am', 'G', 'C', 'D', 'E7']) {
       const acc = accordo(id);
       const freq = hzDi(acc, tun);
       const b = bancoAccordo(ctx, freq);
@@ -520,7 +594,7 @@ gruppo('Ascolto accordo — trova la corda spenta', (t) => {
 // ── H2. Colore delle dita ────────────────────────────────────────────────────
 
 gruppo('Colore delle dita — ogni pallino tinto del suo dito', (t) => {
-  const conNumeri = ['C', 'F', 'G', 'Dm', 'Em', 'Bb', 'B7', 'D', 'Cm7', 'E'];
+  const conNumeri = ['C', 'G', 'Am', 'Dm', 'Em', 'F', 'Bb', 'B7', 'D', 'Bm', 'F#m', 'A'];
   conNumeri.forEach((id) => {
     const acc = accordo(id);
     const svg = diagramma(acc, { tasti: 5, dita: true });
@@ -544,20 +618,39 @@ gruppo('Colore delle dita — ogni pallino tinto del suo dito', (t) => {
       `tinte ${tinte.join(',')} contro numeri ${numeri.join(',')}`);
   });
 
+  // Il diagramma deve disegnare TUTTE le corde dello strumento. Il numero non è scritto
+  // da nessuna parte nel disegno: si legge da CORDE.length, ed è la sola modifica che
+  // questo file ha subito passando da quattro corde a sei.
+  ACCORDI.slice(0, 12).forEach((a) => {
+    const svg = diagramma(a, { tasti: 5 });
+    t.uguale(`${a.id}: il diagramma ha ${CORDE.length} corde`,
+      svg.querySelectorAll('.d-corda').length, CORDE.length);
+    t.uguale(`${a.id}: e ${CORDE.length} nomi di corda sotto`,
+      svg.querySelectorAll('.d-corda-nome').length, CORDE.length);
+  });
+
+  // Le corde smorzate portano la ✕: sulla chitarra è informazione, non decorazione.
+  ACCORDI.filter((a) => a.tasti.includes(-1)).slice(0, 8).forEach((a) => {
+    const svg = diagramma(a, { tasti: 5 });
+    t.uguale(`${a.id}: una ✕ per ogni corda da non suonare`,
+      svg.querySelectorAll('.d-muta').length, a.tasti.filter((x) => x < 0).length);
+  });
+
   // Senza numeri niente colore: altrimenti il colore resterebbe l'unico portatore
   // dell'informazione, e chi non distingue le tinte perderebbe tutto.
-  const muto = diagramma(accordo('G'), { dita: false });
+  const muto = diagramma(accordo('C'), { dita: false });
   t.ok('senza i numeri i pallini restano neutri',
     [...muto.querySelectorAll('.d-punto')].every((p) => !/dito-/.test(p.getAttribute('class'))));
 
   // La legenda mostra solo le dita davvero usate.
-  const soloDue = legendaDita(accordo('F').dita);
-  t.uguale('la legenda del Fa elenca due dita', soloDue.querySelectorAll('.tacca-dito').length, 2);
+  const soloDue = legendaDita(accordo('Em').dita);
+  t.uguale('la legenda del Mi minore elenca due dita', soloDue.querySelectorAll('.tacca-dito').length, 2);
   t.uguale('la legenda completa ne elenca quattro', legendaDita().querySelectorAll('.tacca-dito').length, 4);
 
   // Mano destra: stesso dito, stesso colore.
   t.uguale('indice destro = colore del dito 1', classeDito('i'), 'dito-i');
   t.uguale('pollice ha la sua tinta', classeDito('p'), 'dito-p');
+  t.uguale('il pollice sul basso alternato è lo stesso dito, stessa tinta', classeDito('P'), 'dito-p');
   t.uguale('il pizzico a due dita è misto', classeDito('p+a'), 'dito-misto');
   t.uguale('la pausa non ha colore', classeDito('-'), '');
 
@@ -574,7 +667,7 @@ gruppo('Nota estranea — un accordo lasciato suonare non vale per il successivo
   t.asincrono = async () => {
     const ctx = await preparaContesto(t);
     if (!ctx) return;
-    const tun = accordatura('gcea');
+    const tun = accordatura('eadgbe');
 
     /**
      * Qui si usa la corda MODELLATA, non il banco di oscillatori degli altri gruppi.
@@ -591,7 +684,7 @@ gruppo('Nota estranea — un accordo lasciato suonare non vale per il successivo
      */
     function bancoCorde(frequenze) {
       const an = ctx.createAnalyser();
-      an.fftSize = 4096;
+      an.fftSize = FFT_ACCORDO;
       an.smoothingTimeConstant = 0;
       const g = ctx.createGain();
       g.gain.value = 0.9;
@@ -622,28 +715,83 @@ gruppo('Nota estranea — un accordo lasciato suonare non vale per il successivo
       return { presenti, estranea };
     }
 
-    // Accordo giusto: nessuna nota estranea degna di nota.
-    for (const id of ['C', 'Am', 'F', 'G', 'Dm', 'E7']) {
+    // La soglia si DERIVA da queste due colonne, non si copia.
+    //
+    // Il numero dell'ukulele (0,30) qui non vorrebbe dire niente, e non per prudenza
+    // generica: la banda e passata da 240-950 a 70-950 Hz, quindi del Mi basso adesso
+    // entrano dentro anche il 3 e il 5 armonico - una quinta e una TERZA MAGGIORE. Su un
+    // accordo minore quella terza maggiore e esattamente la nota che non ci deve essere.
+    // Il pavimento delle misure "giuste" si alza per fisica, non per un difetto.
+    //
+    // Quindi: si misurano le due popolazioni, si guarda dove sta il vuoto in mezzo, e solo
+    // dopo si sceglie. I due estremi sono stampati qui sotto apposta.
+    const giusti = [];
+    for (const id of ['E', 'Em', 'A', 'Am', 'D', 'Dm', 'G', 'C', 'E7', 'A7', 'G7', 'Am7']) {
       const r = await misura(id, id);
+      giusti.push({ id, v: r.estranea });
       t.ok(`${id} suonato bene: niente di estraneo`, r.estranea <= SOGLIA_ESTRANEA,
         `${r.estranea.toFixed(2)} contro soglia ${SOGLIA_ESTRANEA}`);
     }
 
     // Accordo diverso da quello atteso: deve emergere.
-    // Il caso che ha morso: il La minore ha due corde all'unisono, quindi le giudicabili
-    // sono solo Do e Mi — e ci sono anche nel Do maggiore. Con la sola presenza passava.
-    const inganni = [['C', 'Am'], ['Am', 'C'], ['C', 'F'], ['F', 'Dm'], ['G', 'C'], ['Dm', 'F']];
+    // Il caso che ha morso sull'ukulele: il La minore aveva due corde all'unisono, quindi
+    // le giudicabili erano solo Do e Mi - e ci sono anche nel Do maggiore. Con la sola
+    // presenza, un Do lasciato suonare passava per La minore. Sulla chitarra il problema
+    // e piu grande, non piu piccolo: sei corde fanno molti piu unisoni e ottave.
+    const inganni = [
+      ['C', 'Am'], ['Am', 'C'], ['C', 'F'], ['G', 'C'], ['Em', 'E'], ['E', 'Em'],
+      ['A', 'Am'], ['Am', 'A'], ['D', 'Dm'], ['G', 'Em'], ['C', 'G'], ['D', 'A'],
+    ];
+    const sbagliati = [];
     for (const [suonato, atteso] of inganni) {
       const r = await misura(suonato, atteso);
+      sbagliati.push({ id: `${suonato} per ${atteso}`, v: r.estranea });
       t.ok(`${suonato} non passa per ${atteso}`, r.estranea > SOGLIA_ESTRANEA,
-        `estranea ${r.estranea.toFixed(2)}${r.presenti ? ' — e la sola presenza lo avrebbe accettato' : ''}`);
+        `estranea ${r.estranea.toFixed(2)}${r.presenti ? ' - e la sola presenza lo avrebbe accettato' : ''}`);
     }
 
-    // Il caso specifico, dichiarato: senza il controllo delle estranee sarebbe passato.
-    const doPerLam = await misura('C', 'Am');
-    t.ok('il Do supera la prova di sola presenza contro il La minore (è il motivo del controllo)',
-      doPerLam.presenti === true,
-      'se un giorno diventa false, il controllo delle estranee non serve più qui');
+    const peggioreGiusto = giusti.reduce((a, b) => (b.v > a.v ? b : a));
+    const miglioreSbagliato = sbagliati.reduce((a, b) => (b.v < a.v ? b : a));
+    t.misura('accordi GIUSTI: quanta energia finisce su note estranee',
+      `da ${Math.min(...giusti.map((x) => x.v)).toFixed(2)} a ${peggioreGiusto.v.toFixed(2)} (il peggiore e ${peggioreGiusto.id})`);
+    t.misura('accordi SBAGLIATI: quanta energia finisce su note estranee',
+      `da ${miglioreSbagliato.v.toFixed(2)} a ${Math.max(...sbagliati.map((x) => x.v)).toFixed(2)} (il piu mimetico e ${miglioreSbagliato.id})`);
+    t.misura('soglia in uso, e che margine le resta dai due lati',
+      `${SOGLIA_ESTRANEA}: sopra i giusti di ${(SOGLIA_ESTRANEA - peggioreGiusto.v).toFixed(2)}, sotto gli sbagliati di ${(miglioreSbagliato.v - SOGLIA_ESTRANEA).toFixed(2)}`);
+
+    // Le due popolazioni devono STARE SEPARATE. Se si toccano non esiste nessuna soglia
+    // che funzioni, e il difetto non e il numero: e che la misura non distingue i due casi.
+    t.ok('fra accordo giusto e accordo sbagliato resta un vuoto',
+      miglioreSbagliato.v > peggioreGiusto.v,
+      `il peggiore dei giusti (${peggioreGiusto.v.toFixed(2)}, ${peggioreGiusto.id}) arriva sopra il piu mimetico degli sbagliati (${miglioreSbagliato.v.toFixed(2)}, ${miglioreSbagliato.id})`);
+    t.ok('la soglia sta dentro il vuoto, non su un bordo',
+      SOGLIA_ESTRANEA > peggioreGiusto.v && SOGLIA_ESTRANEA < miglioreSbagliato.v,
+      `soglia ${SOGLIA_ESTRANEA} fuori dall'intervallo ${peggioreGiusto.v.toFixed(2)}-${miglioreSbagliato.v.toFixed(2)}`);
+
+    // ── Il dito dimenticato: il caso per cui il controllo delle estranee esiste ────
+    //
+    // Sull'ukulele l'esempio era il Do lasciato suonare al posto del La minore. Sulla
+    // chitarra quel caso non regge più (le frequenze sono diverse e la sola presenza lo
+    // blocca già), ma ne esiste uno molto più frequente e molto più insidioso: il dito
+    // che non scende.
+    //
+    // Chi fa il Do e dimentica l'indice sulla 2ª corda suona un Do maggiore settima. Chi
+    // fa il La minore e dimentica il dito sulla 2ª suona un La minore settima. Quelle
+    // forme contengono TUTTE le frequenze attese — o le producono come armonici — quindi
+    // la sola presenza le accetta: il programma direbbe "bravo" a un accordo che non è
+    // quello. È l'errore numero uno di chi impara, ed è invisibile senza questo controllo.
+    const ditoDimenticato = [['Cmaj7', 'C'], ['Am7', 'Am'], ['Em7', 'Em'], ['G6', 'G'], ['Cadd9', 'C']];
+    let passatiPerPresenza = 0;
+    for (const [suonato, atteso] of ditoDimenticato) {
+      const r = await misura(suonato, atteso);
+      if (r.presenti) passatiPerPresenza += 1;
+      t.ok(`${suonato} al posto di ${atteso} (il dito che non scende) viene smascherato`,
+        r.estranea > SOGLIA_ESTRANEA,
+        `estranea ${r.estranea.toFixed(2)}, soglia ${SOGLIA_ESTRANEA}`);
+    }
+    t.ok('e la sola presenza li avrebbe accettati quasi tutti: è il motivo del controllo',
+      passatiPerPresenza >= 3,
+      `solo ${passatiPerPresenza} su ${ditoDimenticato.length} passano per presenza — se scende a zero, qui il controllo non serve più`);
     await ctx.close();
   };
 });
@@ -776,7 +924,7 @@ gruppo('Metronomo — il click non si fa scambiare per una pennata', (t) => {
   t.asincrono = async () => {
     const ctx = await preparaContesto(t);
     if (!ctx) return;
-    // Il click viene misurato DENTRO la banda in cui si cercano le corde (200–1100 Hz):
+    // Il click viene misurato DENTRO la banda in cui si cercano le corde (75–1100 Hz):
     // se ci lasciasse energia, il microfono lo conterebbe come una tua pennata e
     // l'esercizio risulterebbe suonato benissimo a strumento appoggiato sul tavolo.
     const an = ctx.createAnalyser();
@@ -809,7 +957,7 @@ gruppo('Metronomo — il click non si fa scambiare per una pennata', (t) => {
     for (let i = 1; i < spettro.length; i += 1) {
       const hz = i * binHz;
       if (!Number.isFinite(spettro[i])) continue;
-      if (hz >= 200 && hz <= 1100) dentroBanda = Math.max(dentroBanda, spettro[i]);
+      if (hz >= 75 && hz <= 1100) dentroBanda = Math.max(dentroBanda, spettro[i]);
       else if (hz > 1800 && hz < 9000) fuoriBanda = Math.max(fuoriBanda, spettro[i]);
     }
     t.ok('il click esiste, sopra la banda', fuoriBanda > -60, `${fuoriBanda.toFixed(0)} dB`);
@@ -831,7 +979,7 @@ gruppo('Suono — la corda pizzicata ha l\'altezza giusta e si spegne', (t) => {
     // Si misura il suono che l'app genera davvero, con lo stesso rilevatore
     // dell'accordatore: se il modello sbagliasse l'altezza, ogni "ascolta com'è"
     // insegnerebbe la nota sbagliata.
-    for (const hz of [261.63, 329.63, 392.0, 440.0]) {
+    for (const hz of [82.41, 110.0, 146.83, 196.0, 246.94, 329.63]) {
       const buffer = bufferCorda(hz, 1.6);
       const an = ctx.createAnalyser();
       an.fftSize = 4096;
@@ -879,8 +1027,8 @@ gruppo('Suono — la corda pizzicata ha l\'altezza giusta e si spegne', (t) => {
       for (let i = d.length - 1; i > 0; i -= 1) if (Math.abs(d[i]) > soglia) return i / buf.sampleRate;
       return 0;
     };
-    const grave = durataUtile(196);
-    const acuta = durataUtile(880);
+    const grave = durataUtile(82.41);
+    const acuta = durataUtile(659.26);
     t.ok('l\'acuta muore prima della grave', acuta < grave, `acuta ${acuta.toFixed(2)}s, grave ${grave.toFixed(2)}s`);
     await ctx.close();
   };
@@ -954,8 +1102,8 @@ gruppo('Accordatore — non dice "a posto" quando non sta misurando', (t) => {
 // ── Q. Posizioni sul manico ──────────────────────────────────────────────────
 
 gruppo('Posizioni — le forme trovate suonano davvero quell\'accordo', (t) => {
-  const midiCorde = accordatura('gcea').corde.map((c) => c.midi);
-  const campione = ['C', 'Am', 'F', 'G', 'G7', 'Dm', 'Em', 'E7', 'Bb', 'D', 'C7', 'Cmaj7', 'Dm7', 'A7'];
+  const midiCorde = accordatura('eadgbe').corde.map((c) => c.midi);
+  const campione = ['C', 'Am', 'F', 'G', 'G7', 'Dm', 'Em', 'E', 'E7', 'Bb', 'D', 'A', 'Cmaj7', 'Dm7', 'A7', 'Bm'];
 
   campione.forEach((nome) => {
     const posizioni = posizioniDi(nome, { midiCorde, limite: 5 });
@@ -979,6 +1127,16 @@ gruppo('Posizioni — le forme trovate suonano davvero quell\'accordo', (t) => {
       t.ok(`${nome} @${v.posizione}: dita coerenti coi tasti`,
         v.tasti.every((tasto, i) => (tasto > 0 ? v.dita[i] > 0 : v.dita[i] === 0)),
         `${JSON.stringify(v.tasti)} / ${JSON.stringify(v.dita)}`);
+
+      // Le corde smorzate stanno ai bordi, come nella libreria scritta a mano: una corda
+      // spenta in mezzo a due che suonano e una presa che sulla carta funziona e sotto le
+      // dita no.
+      const suonanti = v.tasti.map((x, i) => (x >= 0 ? i : -1)).filter((i) => i >= 0);
+      t.ok(`${nome} @${v.posizione}: le corde smorzate stanno ai bordi`,
+        suonanti[suonanti.length - 1] - suonanti[0] === suonanti.length - 1,
+        JSON.stringify(v.tasti));
+      t.ok(`${nome} @${v.posizione}: almeno quattro corde suonano`, suonanti.length >= 4,
+        `${suonanti.length} corde`);
     });
 
     // Deve esistere davvero una posizione più ACUTA, che è la ragione della funzione:
@@ -993,8 +1151,25 @@ gruppo('Posizioni — le forme trovate suonano davvero quell\'accordo', (t) => {
   });
 
   // La posizione aperta di un accordo che ce l'ha deve essere fra quelle trovate.
-  const doAperto = posizioniDi('C', { midiCorde, limite: 6 }).some((v) => v.tasti.join() === '0,0,0,3');
-  t.ok('fra le posizioni di Do c\'è quella aperta che tutti conoscono', doAperto);
+  // Le forme che tutti conoscono devono uscire dalla ricerca, non essere un caso a parte.
+  // Se non escono, l'ordinamento sta premiando la cosa sbagliata: e gia successo, con il
+  // criterio "meno dita" ereditato dall'ukulele il Sol veniva rappresentato da x2000x.
+  const famose = [
+    ['C', '-1,3,2,0,1,0'],
+    ['G', '3,2,0,0,0,3'],
+    ['Am', '-1,0,2,2,1,0'],
+    ['Em', '0,2,2,0,0,0'],
+    ['D', '-1,-1,0,2,3,2'],
+    ['E', '0,2,2,1,0,0'],
+    ['A', '-1,0,2,2,2,0'],
+    ['F', '1,3,3,2,1,1'],
+  ];
+  famose.forEach(([nome, forma]) => {
+    const trovate = posizioniDi(nome, { midiCorde, limite: 6 });
+    t.ok(`fra le posizioni di ${nome} c'e la forma che tutti conoscono`,
+      trovate.some((v) => v.tasti.join() === forma),
+      `${forma} non e fra ${trovate.map((v) => v.tasti.join(' ')).join(' / ')}`);
+  });
 });
 
 // ── P. Ascolto vivo: la prova che vale più di tutte ──────────────────────────
@@ -1022,12 +1197,15 @@ gruppo('Ascolto vivo — misura davvero quando penni', (t) => {
       const c = audio.contesto();
       const ascolto = new AscoltoVivo(
         audio.nuovoAnalizzatore({ fftSize: 1024 }),
-        audio.nuovoAnalizzatore({ fftSize: 4096 }),
+        audio.analizzatoreAccordo(),
       );
       ascolto.impostaLatenza(0);
 
-      const doMaggiore = [392.0, 261.63, 329.63, 523.25];
-      const penna = (quando, extra) => doMaggiore.forEach((hz, i) => {
+      // Un Mi maggiore vero, tutte e sei le corde: 82,41 / 123,47 / 164,81 / 207,65 /
+      // 246,94 / 329,63 Hz. E la pennata che una chitarra fa davvero, e comincia dal
+      // grave - cioe proprio dalla parte di spettro che la banda dell'ukulele tagliava via.
+      const miMaggiore = [82.41, 123.47, 164.81, 207.65, 246.94, 329.63];
+      const penna = (quando, extra) => miMaggiore.forEach((hz, i) => {
         const s = c.createBufferSource();
         s.buffer = bufferCorda(hz, 1.2);
         const g = c.createGain();

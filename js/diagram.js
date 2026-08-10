@@ -1,9 +1,12 @@
 // Disegno del diagramma accordo in SVG.
 //
-// Convenzione: manico in verticale, corde da sinistra a destra G C E A, capotasto in alto.
-// È la vista che hai guardando lo strumento con il manico rivolto verso l'alto — la stessa
+// Convenzione: manico in verticale, corde da sinistra a destra E A D G B E (dalla 6ª alla
+// 1ª), capotasto in alto. È la vista che hai guardando lo strumento di fronte — la stessa
 // dei libri di accordi. Il diagramma si adatta: se l'accordo vive al 4° tasto la finestra
 // scorre e lo dichiara ("4fr"), invece di disegnare quattro tasti vuoti.
+//
+// Il numero di corde si legge da `CORDE.length`, mai scritto a mano: questo file è lo
+// stesso dell'ukulele a quattro corde, e deve restarlo.
 
 import { CORDE, tastoMassimo, etichettaAccordo } from './chords.js';
 
@@ -32,12 +35,13 @@ export function diagramma(acc, opt = {}) {
   // Il raggio del pallino si RICAVA dal passo delle corde, non si sceglie a parte.
   // Con passo 22 e raggio 9 due dita sullo stesso tasto lasciavano 4 pixel di aria e il
   // Sib diventava una macchia: il barré, due pallini e i numeri tutti addosso.
+  const ultima = CORDE.length - 1;
   const L = 27;              // passo fra le corde
   const H = 30;              // passo fra i tasti
   const R = L * 0.34;        // raggio del pallino: ~34% del passo lascia respiro fra due dita
   const padX = 22;
   const padTop = 28;         // spazio per o/x sopra il capotasto
-  const larghezza = padX * 2 + L * (CORDE.length - 1);
+  const larghezza = padX * 2 + L * ultima;
   const altezza = padTop + H * nTasti + 26;
 
   const svg = el('svg', {
@@ -54,11 +58,11 @@ export function diagramma(acc, opt = {}) {
   // Capotasto (spesso) oppure barra di tasto normale in cima
   if (conCapotasto) {
     svg.appendChild(el('rect', {
-      x: x(0) - 1, y: padTop - 5, width: L * 3 + 2, height: 5, rx: 1.5, class: 'd-capotasto',
+      x: x(0) - 1, y: padTop - 5, width: L * ultima + 2, height: 5, rx: 1.5, class: 'd-capotasto',
     }));
   } else {
     svg.appendChild(el('line', {
-      x1: x(0), y1: padTop, x2: x(3), y2: padTop, class: 'd-tasto',
+      x1: x(0), y1: padTop, x2: x(ultima), y2: padTop, class: 'd-tasto',
     }));
     const et = el('text', { x: 6, y: yCentro(primo) + 4, class: 'd-posizione' });
     et.textContent = `${primo}fr`;
@@ -67,7 +71,7 @@ export function diagramma(acc, opt = {}) {
 
   for (let t = 1; t <= nTasti; t += 1) {
     svg.appendChild(el('line', {
-      x1: x(0), y1: padTop + t * H, x2: x(3), y2: padTop + t * H, class: 'd-tasto',
+      x1: x(0), y1: padTop + t * H, x2: x(ultima), y2: padTop + t * H, class: 'd-tasto',
     }));
   }
   for (let i = 0; i < CORDE.length; i += 1) {

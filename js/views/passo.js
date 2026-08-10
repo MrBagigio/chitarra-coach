@@ -4,7 +4,7 @@
 import { aggiungi, h, scheda, indietro, bottone, frecce } from '../ui.js';
 import * as store from '../store.js';
 import * as curriculum from '../curriculum.js';
-import { accordo, noteSuonate, CORDE } from '../chords.js';
+import { accordo, noteSuonate, CORDE, NUMERI_CORDA, bassiDi } from '../chords.js';
 import { diagramma, legendaDita, NOMI_DITA } from '../diagram.js';
 import { ritmo as ritmoPerId, etichette, simbolo, cordeDiCasella, classeDito } from '../patterns.js';
 import { brano as branoPerId } from '../songs.js';
@@ -223,6 +223,7 @@ function avvioCambio(p) {
 function avvioRitmo(p) {
   const r = ritmoPerId(p.dati.ritmo);
   const et = etichette(r);
+  const accPasso = p.dati.accordo ? accordo(p.dati.accordo) : null;
   const parametri = new URLSearchParams({
     r: r.id,
     acc: p.dati.accordo || 'null',
@@ -236,17 +237,17 @@ function avvioRitmo(p) {
     etichetta: `${arpeggio ? 'Prova l\'arpeggio' : 'Prova il ritmo'} a ${p.dati.bpm} bpm`,
     anteprima: [
       h('div', { class: `es-griglia statica${arpeggio ? ' arpeggio' : ''}` }, ...r.slot.map((s, i) => {
-        const corde = arpeggio ? cordeDiCasella(s) : [];
+        const corde = arpeggio ? cordeDiCasella(s, accPasso ? bassiDi(accPasso) : undefined) : [];
         return h('div', { class: `cella s-${s === '-' ? 'pausa' : (arpeggio ? 'dito' : s)}` },
           h('span', { class: `cella-freccia ${classeDito(s)}`, testo: simbolo(r, s) }),
-          corde.length ? h('span', { class: 'cella-corde', testo: corde.map((c) => CORDE[c]).join('+') }) : null,
+          corde.length ? h('span', { class: 'cella-corde', testo: corde.map((c) => NUMERI_CORDA[c]).join('+') }) : null,
           h('span', { class: 'cella-conto', testo: et[i] }));
       })),
       h('p', {
         class: 'dim piccolo',
         testo: arpeggio
-          ? 'P pollice (corda G) · I indice (C) · M medio (E) · A anulare (A) · · dito fermo'
-          : '↓ giù · ↑ su · ✕ colpo smorzato · · mano ferma',
+          ? 'P pollice sul basso · P2 pollice sul basso alternato · I indice (3ª) · M medio (2ª) · A anulare (1ª) · · dito fermo'
+          : '↓ giù · ↑ su · ↓ᵇ solo il basso · ✕ colpo smorzato · · mano ferma',
       }),
     ],
   };

@@ -19,7 +19,7 @@ import { hzDaMidi } from '../pitch.js';
 import { verificabilita, energiaEstranea, SOGLIA_ESTRANEA } from '../chroma.js';
 import { classiAttese } from '../theory.js';
 import {
-  apriMicrofono, chiudiMicrofono, sblocca, tieniSchermoAcceso, nuovoAnalizzatore,
+  apriMicrofono, chiudiMicrofono, sblocca, tieniSchermoAcceso, nuovoAnalizzatore, analizzatoreAccordo,
   contesto as contestoAudio,
 } from '../audio.js';
 import { AscoltoVivo } from '../ascoltoVivo.js';
@@ -163,7 +163,7 @@ export function monta(radice, ctx) {
     try {
       await apriMicrofono();
       if (!vivo) { chiudiMicrofono(); return; }
-      ascolto = new AscoltoVivo(nuovoAnalizzatore({ fftSize: 1024 }), nuovoAnalizzatore({ fftSize: 4096 }));
+      ascolto = new AscoltoVivo(nuovoAnalizzatore({ fftSize: 1024 }), analizzatoreAccordo());
       ascolto.impostaLatenza(0);              // qui non si misura il tempo contro una griglia
     } catch (e) {
       verdetto.className = 'verdetto errore';

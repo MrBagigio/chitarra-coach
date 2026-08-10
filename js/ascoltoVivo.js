@@ -20,7 +20,13 @@
 import { contesto, nuovoAnalizzatore } from './audio.js';
 import { Ascoltatore } from './chroma.js';
 
-const BANDA_MIN = 200;          // sotto: rumore di stanza
+// La banda dell'attacco parte da 75 Hz e non da 200 come sull'ukulele: su una chitarra
+// una pennata comincia dalle corde gravi, e il Mi basso sta a 82,4 Hz. Con la banda vecchia
+// l'attacco di una pennata in giù veniva visto solo quando la mano arrivava a metà corde —
+// cioè qualche millisecondo dopo, sistematicamente.
+// Sotto i 75 Hz non si scende: lì c'è il rimbombo della stanza e il tonfo della mano
+// sulla cassa, che non sono pennate.
+const BANDA_MIN = 75;
 const BANDA_MAX = 1100;         // sopra: il click del metronomo e i fruscii
 const PAUSA_MINIMA_S = 0.075;   // due pennate più vicine di così sono la stessa
 const STORICO_FLUSSO = 24;

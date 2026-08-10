@@ -8,13 +8,13 @@
 
 import { aggiungi, h, scheda, indietro, bottone, barra, plurale } from '../ui.js';
 import * as store from '../store.js';
-import { accordo, etichettaAccordo, CORDE } from '../chords.js';
+import { accordo, etichettaAccordo, CORDE, NUMERI_CORDA, bassiDi } from '../chords.js';
 import { schedaAccordo } from '../diagram.js';
 import { ritmo as ritmoPerId, etichette, simbolo, cordeDiCasella, classeDito } from '../patterns.js';
 import { branoSeEsiste, accordiDi, branoTrasportato, tonalitaDi } from '../songs.js';
 import {
   Metronomo, sblocca, tieniSchermoAcceso, apriMicrofono, chiudiMicrofono, nuovoAnalizzatore,
-  microfonoAperto, contesto as contestoAudio,
+  analizzatoreAccordo, microfonoAperto, contesto as contestoAudio,
 } from '../audio.js';
 import { AscoltoVivo, giudizioTempo, riepilogo, taraLatenza } from '../ascoltoVivo.js';
 import { accordatura } from '../tunings.js';
@@ -241,7 +241,7 @@ export function monta(radice, ctx) {
       await apriMicrofono();
       if (!vivo) return;
       const veloce = nuovoAnalizzatore({ fftSize: 1024 });
-      const lento = nuovoAnalizzatore({ fftSize: 4096 });
+      const lento = analizzatoreAccordo();
       ascolto = new AscoltoVivo(veloce, lento);
       const ms = store.dati().latenzaMs;
       // Senza taratura si usa una stima prudente invece di zero: zero sarebbe una bugia
@@ -633,10 +633,11 @@ function modoRitmo(q) {
     disegnaPalco(palco) {
       palco.className = `es-palco ritmo${r.tipo === 'dita' ? ' arpeggio' : ''}`;
       griglia.replaceChildren(...r.slot.map((s, i) => {
-        const corde = r.tipo === 'dita' ? cordeDiCasella(s) : [];
+        // Le corde del pollice dipendono dall'accordo: si risolvono qui, non nello schema.
+        const corde = r.tipo === 'dita' ? cordeDiCasella(s, acc ? bassiDi(acc) : undefined) : [];
         return h('div', { class: `cella s-${classeCasella(r, s)}` },
           h('span', { class: `cella-freccia ${classeDito(s)}`, testo: simbolo(r, s) }),
-          corde.length ? h('span', { class: 'cella-corde', testo: corde.map((c) => CORDE[c]).join('+') }) : null,
+          corde.length ? h('span', { class: 'cella-corde', testo: corde.map((c) => NUMERI_CORDA[c]).join('+') }) : null,
           h('span', { class: 'cella-conto', testo: et[i] }));
       }));
       palco.replaceChildren(

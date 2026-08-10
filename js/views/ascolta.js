@@ -2,21 +2,29 @@
 //
 // Due modi, e la differenza è dichiarata nella pagina perché cambia quanto ti puoi fidare:
 //
-//   verifica — sai già che accordo vuoi: il programma controlla che le quattro note attese
-//              ci siano tutte. Domanda facile, risposta affidabile, ed è quella utile:
+//   verifica — sai già che accordo vuoi: il programma controlla che le note attese ci
+//              siano tutte. Domanda facile, risposta affidabile, ed è quella utile:
 //              l'errore vero del principiante è spegnere una corda col dito.
 //
-//   indovina — non gli dici niente e prova a dire che accordo è. Sull'ukulele Do6 e Lam7
-//              sono le STESSE quattro note: la risposta è una classifica, non una sentenza.
+//   indovina — non gli dici niente e prova a dire che accordo è. Do6 e Lam7 sono le
+//              STESSE note: la risposta è una classifica, non una sentenza.
+//
+// Sulla chitarra le corde "–" sono molte più che sull'ukulele, ed è onestà, non un
+// peggioramento: con sei corde gli unisoni e le ottave sono la norma. In un Mi maggiore
+// suonano tre Mi e due Si — le corde davvero giudicabili una per una sono tre.
 
 import { aggiungi, h, scheda, titoloPagina, indietro, bottone } from '../ui.js';
 import * as store from '../store.js';
-import { ACCORDI, accordo, CORDE, etichettaAccordo, nomeCanonico } from '../chords.js';
+import {
+  ACCORDI, accordo, CORDE, NUMERI_CORDA, etichettaAccordo, nomeCanonico,
+} from '../chords.js';
 import { diagramma } from '../diagram.js';
 import { accordatura } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { Ascoltatore, classifica, verificabilita } from '../chroma.js';
-import { apriMicrofono, chiudiMicrofono, sblocca, suonaPennata, tieniSchermoAcceso } from '../audio.js';
+import {
+  apriMicrofono, chiudiMicrofono, sblocca, suonaPennata, tieniSchermoAcceso, analizzatoreAccordo,
+} from '../audio.js';
 import { nomeClasse } from '../theory.js';
 import * as curriculum from '../curriculum.js';
 
@@ -116,16 +124,16 @@ export function monta(radice, ctx) {
       class: `nc stato-attesa${controllabili[i].verificabile ? '' : ' non-giudicabile'}`,
       dati: { corda: String(i) },
     },
-      h('small', { testo: nome }),
+      h('small', { testo: `${NUMERI_CORDA[i]} ${nome}` }),
       h('strong', { class: 'nc-esito', testo: controllabili[i].verificabile ? '?' : '–' }),
       h('span', { class: 'dim piccolo', testo: bersaglio.tasti[i] < 0 ? 'muta' : (bersaglio.tasti[i] === 0 ? 'libera' : `tasto ${bersaglio.tasti[i]}`) }))));
 
     // Il perché di un "–" va detto sullo schermo: un tooltip su un telefono non esiste.
     const fuoriPortata = controllabili
-      .map((c, i) => (c.verificabile || bersaglio.tasti[i] < 0 ? null : CORDE[i]))
+      .map((c, i) => (c.verificabile || bersaglio.tasti[i] < 0 ? null : NUMERI_CORDA[i]))
       .filter(Boolean);
     notaNonGiudicabili.textContent = fuoriPortata.length
-      ? `Le corde ${fuoriPortata.join(' e ')} sono segnate "–": suonano una nota che un'altra corda già produce, quindi spegnendole lo spettro non cambia e nessun programma può accorgersene. Non è un difetto, è fisica.`
+      ? `La ${fuoriPortata.join(', la ')} ${fuoriPortata.length > 1 ? 'sono segnate' : 'è segnata'} "–": suonano una nota che un'altra corda già produce, quindi spegnendole lo spettro non cambia e nessun programma può accorgersene. Non è un difetto, è fisica — e con sei corde capita spesso.`
       : '';
     notaNonGiudicabili.classList.toggle('nascosto', !fuoriPortata.length);
     aggiornaContatore();
@@ -145,10 +153,12 @@ export function monta(radice, ctx) {
     avviso.className = 'avviso neutro';
     avviso.textContent = 'Apertura del microfono…';
     try {
-      const analyser = await apriMicrofono();
+      await apriMicrofono();
       if (!vivo) { chiudiMicrofono(); return; }
-      analyser.fftSize = 4096;
-      ascoltatore = new Ascoltatore(analyser);
+      // Analizzatore DEDICATO, non quello dell'accordatore con la finestra cambiata sotto:
+      // le due domande vogliono finestre diverse e cambiare la proprietà di un nodo
+      // condiviso significa peggiorare l'altra misura di nascosto.
+      ascoltatore = new Ascoltatore(analizzatoreAccordo());
       avviso.className = 'avviso nascosto';
       avviso.textContent = '';
       bottoneMic.classList.add('nascosto');

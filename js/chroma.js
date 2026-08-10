@@ -2,24 +2,66 @@
 //
 // Due domande diverse, e la differenza conta:
 //
-//   verifica(atteso)  — "le quattro note che dovrebbero suonare ci sono tutte?"
+//   verifica(atteso)  — "le corde che dovrebbero suonare ci sono tutte?"
 //                       Domanda facile e onesta, perché sappiamo ESATTAMENTE quali
 //                       frequenze aspettarci (accordatura + tasti). È anche la domanda
 //                       giusta: l'errore del principiante non è suonare un altro accordo,
 //                       è spegnere una corda col dito e non accorgersene.
 //
-//   riconosci()       — "che accordo è?" Domanda difficile e ambigua: sull'ukulele Do6 e
-//                       Lam7 sono LE STESSE quattro note, e nessun programma può
-//                       distinguerli. Torna una classifica, non una sentenza.
+//   riconosci()       — "che accordo è?" Domanda difficile e ambigua: Do6 e Lam7 sono LE
+//                       STESSE note, e nessun programma può distinguerli. Torna una
+//                       classifica, non una sentenza.
 //
-// Banda di analisi 240–950 Hz: ci stanno tutte le fondamentali dell'ukulele (Do4 261 →
-// La5 880) e si tagliano fuori quasi tutti gli armonici alti. Il secondo armonico che
-// resta dentro cade sulla stessa classe di altezza della sua fondamentale, quindi non
-// sporca il conto.
+// ── La banda, e perché sulla chitarra è un problema diverso ───────────────────
+//
+// Banda di analisi 70–950 Hz. Sull'ukulele erano 240–950, e non per pigrizia: le
+// fondamentali dell'ukulele stanno tutte lì dentro (Do4 261 → La5 880). Sulla chitarra il
+// Mi basso è a 82,4 Hz e il La a 110: con quella banda le due corde gravi non esistevano
+// proprio, e "verificare" un accordo significava verificarne i due terzi.
+//
+// Allargare in basso però NON è gratis, ed è il conto che va tenuto a mente leggendo il
+// resto del file. La banda dell'ukulele copriva meno di due ottave: l'unico armonico che
+// entrava era il secondo, che cade sulla STESSA classe di altezza della sua fondamentale
+// e quindi non sporcava niente. Da 70 a 950 Hz ci sono quasi quattro ottave, e del Mi
+// basso entrano dentro il 2°, 3°, 4°, 5° … armonico. Il 3° è una QUINTA sopra, il 5° una
+// TERZA MAGGIORE: due note che la corda non sta suonando e che il conto delle classi si
+// prende comunque.
+//
+// Sugli accordi maggiori è innocuo — fondamentale, quinta e terza maggiore sono
+// esattamente le note dell'accordo. Sui MINORI no: il 5° armonico del basso è una terza
+// maggiore, cioè precisamente la nota che un accordo minore non deve avere.
+//
+// Per questo `SOGLIA_ESTRANEA` più in basso è MISURATA sulla chitarra e non ereditata:
+// il valore dell'ukulele qui non vorrebbe dire niente.
 
 import { classiAttese } from './theory.js';
 
-const HZ_MIN = 240;
+/**
+ * Quanto deve essere lunga la finestra di analisi per giudicare un accordo di chitarra.
+ *
+ * Non è una preferenza: è il conto che decide se questa funzione funziona o no.
+ *
+ * Due picchi vicini nello spettro si distinguono solo se distano più o meno quanto è
+ * largo il lobo della finestra — con quella che usa il browser, tre o quattro caselle.
+ * Le due note più vicine che una chitarra può mettere in basso sono Si2 (123,47 Hz) e
+ * Re3 (146,83): 23 Hz di distanza. Con 4096 campioni a 44,1 kHz una casella vale 10,8 Hz,
+ * quindi quelle due note stanno a due caselle e SI FONDONO in una gobba sola.
+ *
+ * Non è teoria. Misurato, sullo stesso banco che gira nel collaudo:
+ *
+ *   4096  (93 ms)  → Sol, Mi7 e Sol7 risultavano con DUE corde mute che stavano suonando.
+ *                    Energia estranea: giusti 0,11–0,51 · sbagliati 0,46–1,00 → si
+ *                    SOVRAPPONGONO, e nessuna soglia può separarli.
+ *   8192  (186 ms) → nessun falso allarme. Giusti 0,16–0,30 · sbagliati 0,46–1,00.
+ *   16384 (372 ms) → identico a 8192, con il doppio del ritardo. Non serve.
+ *
+ * Quindi 8192, e la scelta finisce qui. Sull'ukulele 4096 bastava perché la nota più
+ * grave era un Do a 261 Hz, dove le caselle sono strette rispetto ai semitoni: è uno di
+ * quei numeri che sembrano generici e invece dipendevano tutti dallo strumento.
+ */
+export const FFT_ACCORDO = 8192;
+
+const HZ_MIN = 70;              // sotto il Re2 del Drop D (73,4 Hz), con un filo di margine
 const HZ_MAX = 950;
 const SOGLIA_PICCO_DB = 30;     // quanto sotto il picco più forte un picco conta ancora
 const SOGLIA_NOTA_DB = 26;      // quanto sotto il picco più forte una nota è "presente"
@@ -27,6 +69,15 @@ const TOLLERANZA_CENT = 65;     // quanto può essere scordata e contare lo stes
 
 export class Ascoltatore {
   constructor(analyser) {
+    // Si rifiuta di nascere con una finestra troppo corta, invece di dare verdetti che
+    // sembrano verdetti. Con 4096 campioni questo oggetto non sbagliava di poco: diceva
+    // "questa corda non sta suonando" a corde che suonavano benissimo, e chi studia
+    // avrebbe passato la serata a cercare un difetto nella propria mano.
+    // È un errore di programmazione, non una situazione dell'utente: deve saltare fuori
+    // sul banco di collaudo, non in cuffia.
+    if (analyser.fftSize < FFT_ACCORDO) {
+      throw new Error(`Ascoltatore: finestra da ${analyser.fftSize} campioni, servono almeno ${FFT_ACCORDO} — sotto, Si2 e Re3 si fondono in un picco solo`);
+    }
     this.analyser = analyser;
     this.sr = analyser.context.sampleRate;
     this.spettro = new Float32Array(analyser.frequencyBinCount);
@@ -146,11 +197,26 @@ export class Ascoltatore {
 /**
  * Soglia sotto la quale l'energia su note estranee è solo il rumore degli armonici.
  *
- * Misurata, non scelta: su accordi suonati bene sta fra 0,00 e 0,08; su un accordo
- * diverso da quello atteso fra 0,76 e 1,00. A 0,30 c'è un fattore quattro di margine
- * da entrambe le parti.
+ * MISURATA sulla chitarra, non ereditata. Il valore dell'ukulele era 0,30, e copiarlo
+ * qui sarebbe stato un errore silenzioso: sulla chitarra 0,30 cade sotto il peggiore
+ * degli accordi GIUSTI, cioè accuserebbe di stonare chi ha suonato bene.
+ *
+ * Le due popolazioni, misurate su dodici accordi giusti e dieci scambi (finestra 8192):
+ *
+ *   accordi suonati bene      0,16 – 0,30   (il peggiore è il Sol7)
+ *   accordo diverso dall'atteso 0,46 – 1,00   (il più mimetico è Mi minore per Mi)
+ *
+ * Il vuoto fra le due sta fra 0,30 e 0,46, e la soglia si mette in mezzo. Il margine è
+ * 0,08 da una parte e 0,08 dall'altra — molto più stretto del fattore quattro che c'era
+ * sull'ukulele, e il motivo è fisico: con quattro ottave di banda gli armonici del basso
+ * cadono su note vere, quindi il pavimento dei "giusti" è alto per costruzione.
+ *
+ * Quel margine stretto va tenuto d'occhio: su una chitarra molto brillante — corde nuove,
+ * plettro duro, pennata vicino al ponte — si assottiglia ancora. Il modo in cui cede però
+ * è quello giusto: il programma si rifiuta di avanzare e chiede di ripennare, non avanza
+ * su un accordo sbagliato.
  */
-export const SOGLIA_ESTRANEA = 0.3;
+export const SOGLIA_ESTRANEA = 0.38;
 
 /**
  * Quanto suona forte la nota più estranea all'accordo.

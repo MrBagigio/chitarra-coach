@@ -40,6 +40,9 @@ export function nomeItaliano(nome) {
 export const QUALITA = {
   '': { nome: 'maggiore', intervalli: [0, 4, 7], omissibili: [] },
   m: { nome: 'minore', intervalli: [0, 3, 7], omissibili: [] },
+  // La quinta vuota non ha terza: non è né maggiore né minore, ed è una qualità a sé,
+  // non un accordo incompleto. Sulla chitarra è due dita e una forma mobile.
+  5: { nome: 'quinta vuota', intervalli: [0, 7], omissibili: [] },
   7: { nome: 'settima di dominante', intervalli: [0, 4, 7, 10], omissibili: [7] },
   m7: { nome: 'minore settima', intervalli: [0, 3, 7, 10], omissibili: [7] },
   maj7: { nome: 'maggiore settima', intervalli: [0, 4, 7, 11], omissibili: [7] },
