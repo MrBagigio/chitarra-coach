@@ -8,7 +8,7 @@ import { accordo, noteSuonate, CORDE, NUMERI_CORDA, bassiDi } from '../chords.js
 import { diagramma, legendaDita, NOMI_DITA } from '../diagram.js';
 import { ritmo as ritmoPerId, etichette, simbolo, cordeDiCasella, classeDito } from '../patterns.js';
 import { brano as branoPerId } from '../songs.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { sblocca, suonaPennata } from '../audio.js';
 
@@ -147,7 +147,7 @@ function montaAccordo(radice, p) {
     acc.suggerimento ? h('p', { class: 'consiglio', testo: acc.suggerimento }) : null,
     bottone('Ascolta com\'è', () => {
       sblocca();
-      const hz = acc.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4)));
+      const hz = frequenzeDi(acc.tasti, tun, d.capotasto, d.la4);
       suonaPennata(hz);
     }, { classe: 'sottile' }),
   ));

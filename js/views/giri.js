@@ -11,7 +11,7 @@ import { diagramma } from '../diagram.js';
 import { NOMI, nomeClasse, accordiDellaTonalita, trasponi } from '../theory.js';
 import { salvaBrano } from '../importa.js';
 import { sblocca, suonaPennata } from '../audio.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { posizioniDi } from '../voicing.js';
 
@@ -215,7 +215,7 @@ export function monta(radice, ctx) {
       if (!acc) return;
       const forma = ottavaAlta ? posizioneAlta(acc) : acc;
       setTimeout(() => {
-        suonaPennata(forma.tasti.map((t, k) => (t < 0 ? null : hzDaMidi(tun.corde[k].midi + t, d.la4))),
+        suonaPennata(frequenzeDi(forma.tasti, tun, d.capotasto, d.la4),
           { durata: 1.4, volume: 0.42 });
       }, i * 620);
     });

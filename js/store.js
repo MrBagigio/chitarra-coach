@@ -6,6 +6,7 @@ const CHIAVE = 'chitarra-coach/v1';
 const VUOTO = () => ({
   versione: 3,
   accordatura: 'eadgbe',
+  capotasto: 0,          // tasto dove sta il capotasto mobile; 0 = non c'e
   la4: 440,
   tema: 'scuro',
   obiettivoMinuti: 10,

@@ -1,6 +1,7 @@
 import { aggiungi, h, scheda, titoloPagina, bottone } from '../ui.js';
 import * as store from '../store.js';
-import { ACCORDATURE } from '../tunings.js';
+import { trasponi } from '../theory.js';
+import { ACCORDATURE, CAPOTASTO_MAX } from '../tunings.js';
 import * as curriculum from '../curriculum.js';
 import { icona } from '../icone.js';
 
@@ -12,6 +13,33 @@ export function monta(radice, ctx) {
     class: 'campo', 'aria-label': 'Accordatura predefinita',
     onchange: (e) => store.imposta('accordatura', e.target.value),
   }, ...ACCORDATURE.map((a) => h('option', { value: a.id, selected: a.id === d.accordatura, testo: a.nome })));
+
+  /**
+   * Il capotasto mobile.
+   *
+   * Non e' un accessorio da elenco: e' il modo in cui si suonano le canzoni in tonalita'
+   * scomode con le forme che si sanno gia'. Una canzone in Sib col capotasto al 3° si
+   * suona con le forme di Sol.
+   *
+   * Per il programma cambia una cosa sola, ma cambia dappertutto: le frequenze che si
+   * aspetta dal microfono si alzano di altrettanti semitoni. Se non si alzassero, con il
+   * capotasto messo l'app direbbe "manca questa corda" a ogni accordo suonato bene.
+   */
+  const selCapotasto = h('select', {
+    class: 'campo', 'aria-label': 'Capotasto mobile',
+    onchange: (e) => { store.imposta('capotasto', Number(e.target.value)); notaCapotasto(); },
+  }, ...Array.from({ length: CAPOTASTO_MAX + 1 }, (_, n) => h('option', {
+    value: String(n), selected: n === d.capotasto, testo: n === 0 ? 'Nessuno' : `Al ${n}° tasto`,
+  })));
+
+  const capotastoDice = h('p', { class: 'dim piccolo' });
+  function notaCapotasto() {
+    const n = store.dati().capotasto;
+    capotastoDice.textContent = n === 0
+      ? 'Le forme e i nomi degli accordi coincidono: quello che vedi e quello che senti.'
+      : `Con il capotasto al ${n}° tasto le FORME non cambiano, cambia quello che esce: la forma del Sol suona ${trasponi('G', n)}, quella del Do suona ${trasponi('C', n)}. Il microfono lo sa e si aspetta le note giuste. L'accordatore invece no: per accordare, togli il capotasto.`;
+  }
+  notaCapotasto();
 
   const selTema = h('select', {
     class: 'campo', 'aria-label': 'Tema',
@@ -101,6 +129,11 @@ export function monta(radice, ctx) {
       h('p', { class: 'occhiello', testo: 'Accordatura' }),
       selAccordatura,
       h('p', { class: 'dim piccolo', testo: 'I diagrammi degli accordi valgono per la standard EADGBE. Il Drop D e il mezzo tono sotto non cambiano le forme, solo i nomi; con DADGAD e Open G restano validi accordatore, ritmi e metronomo, non le posizioni.' })),
+
+    scheda(
+      h('p', { class: 'occhiello', testo: 'Capotasto mobile' }),
+      selCapotasto,
+      capotastoDice),
 
     scheda(
       h('p', { class: 'occhiello', testo: 'Riferimento di intonazione' }),

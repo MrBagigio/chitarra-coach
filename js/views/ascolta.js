@@ -19,7 +19,7 @@ import {
   ACCORDI, accordo, CORDE, NUMERI_CORDA, etichettaAccordo, nomeCanonico,
 } from '../chords.js';
 import { diagramma } from '../diagram.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { Ascoltatore, classifica, verificabilita } from '../chroma.js';
 import {
@@ -51,7 +51,7 @@ export function monta(radice, ctx) {
   let giaConcluso = false;
   let vivo = true;
 
-  const frequenze = () => bersaglio.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4)));
+  const frequenze = () => frequenzeDi(bersaglio.tasti, tun, d.capotasto, d.la4);
 
   // ── testata ────────────────────────────────────────────────────────────────
   const selettore = h('select', {

@@ -17,7 +17,7 @@ import {
   analizzatoreAccordo, microfonoAperto, contesto as contestoAudio,
 } from '../audio.js';
 import { AscoltoVivo, giudizioTempo, riepilogo, taraLatenza } from '../ascoltoVivo.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { nomeClasse } from '../theory.js';
 import * as ripasso from '../ripasso.js';
@@ -378,7 +378,7 @@ export function monta(radice, ctx) {
   function chiudiFinestraAccordo() {
     const { colpo, atteso } = finestraAccordo;
     finestraAccordo = null;
-    const frequenze = atteso.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4)));
+    const frequenze = frequenzeDi(atteso.tasti, tun, d.capotasto, d.la4);
     const v = ascolto.giudicaAccordo(frequenze);
     if (!v) return;
     colpo.accordoOk = v.ok;

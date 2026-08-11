@@ -14,7 +14,7 @@ import * as store from '../store.js';
 import { accordo, etichettaAccordo, CORDE } from '../chords.js';
 import { schedaAccordo } from '../diagram.js';
 import { branoSeEsiste, branoTrasportato } from '../songs.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi, nomeSuonato } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { verificabilita, energiaEstranea, SOGLIA_ESTRANEA } from '../chroma.js';
 import { classiAttese } from '../theory.js';
@@ -72,7 +72,7 @@ export function monta(radice, ctx) {
   const frequenzeDi = (nome) => {
     const acc = accordo(nome);
     if (!acc) return null;
-    return acc.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4)));
+    return frequenzeDi(acc.tasti, tun, d.capotasto, d.la4);
   };
 
   // ── schermo ────────────────────────────────────────────────────────────────
@@ -226,7 +226,10 @@ export function monta(radice, ctx) {
     // Qui la presenza non basta: è il microfono a decidere se andare avanti, quindi
     // deve anche NON sentire note che l'accordo non ha. Senza, un accordo lasciato
     // suonare faceva scattare da solo il passo successivo.
-    const ammesse = classiAttese(nome);
+    // Il nome va TRASPOSTO dal capotasto prima di chiedere quali note sono ammesse:
+    // con il capotasto al 2° la forma del Sol suona un La, e le note ammesse sono
+    // quelle del La. Senza, ogni nota suonata risulterebbe estranea.
+    const ammesse = classiAttese(nomeSuonato(nome, d.capotasto));
     const estranea = ammesse ? energiaEstranea(ascolto.ascoltatore, ammesse.ammesse) : 0;
 
     [...cordeBox.children].forEach((el, i) => {

@@ -8,7 +8,7 @@ import { aggiungi, h, scheda, titoloPagina, indietro, bottone } from '../ui.js';
 import * as store from '../store.js';
 import { accordo, etichettaAccordo } from '../chords.js';
 import { diagramma } from '../diagram.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { sblocca, suonaPennata, fermaNota } from '../audio.js';
 import { scomponi } from '../theory.js';
@@ -51,7 +51,7 @@ export function monta(radice, ctx) {
   );
 
   function frequenze(acc) {
-    return acc.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4)));
+    return frequenzeDi(acc.tasti, tun, d.capotasto, d.la4);
   }
 
   function riproduci() {

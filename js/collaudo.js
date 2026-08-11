@@ -17,7 +17,9 @@ import { RITMI, etichette, cordeDiCasella, classeDito, usaBassoAlternato } from 
 import { diagramma, legendaDita } from './diagram.js';
 import { BRANI, accordiDi, branoTrasportato, branoSeEsiste } from './songs.js';
 import { LIVELLI, PASSI } from './curriculum.js';
-import { ACCORDATURE, accordatura } from './tunings.js';
+import {
+  ACCORDATURE, accordatura, frequenzeDi, nomeSuonato, CAPOTASTO_MAX,
+} from './tunings.js';
 import {
   classiAttese, scomponi, trasponi, classeNota, nomeClasse, tonalitaProbabile,
 } from './theory.js';
@@ -423,6 +425,82 @@ gruppo('Teoria — i nomi si leggono e si trasportano', (t) => {
   t.uguale('il giro dei quattro accordi è in Do', t4 && t4.nome, 'C');
   const tam = tonalitaProbabile(['Am', 'Dm', 'E7']);
   t.ok('il giro minore riconduce a Do/La minore', tam && ['C', 'A'].includes(tam.nome), tam && tam.nome);
+});
+
+// -- F2. Il capotasto mobile -------------------------------------------------
+
+gruppo('Capotasto \u2014 le forme restano, quello che esce si alza', (t) => {
+  const tun = accordatura('eadgbe');
+
+  // Il capotasto non e' un'etichetta: alza DAVVERO tutto di N semitoni. Se le frequenze
+  // attese non si alzassero con lui, il microfono cercherebbe le note sbagliate e
+  // direbbe "manca questa corda" a chi ha suonato benissimo.
+  const senza = frequenzeDi(accordo('G').tasti, tun, 0, 440);
+  for (const capo of [1, 2, 3, 5, 7]) {
+    const con = frequenzeDi(accordo('G').tasti, tun, capo, 440);
+    const rapporti = con.map((hz, i) => (hz === null ? null : hz / senza[i])).filter((x) => x !== null);
+    const atteso = 2 ** (capo / 12);
+    t.ok(`capotasto al ${capo}°: ogni corda sale di ${capo} semitoni`,
+      rapporti.every((r) => Math.abs(1200 * Math.log2(r / atteso)) < 0.5),
+      rapporti.map((r) => (1200 * Math.log2(r)).toFixed(0)).join(' '));
+  }
+
+  // Le corde smorzate restano smorzate: il capotasto non le fa suonare.
+  const conMute = frequenzeDi(accordo('C').tasti, tun, 3, 440);
+  t.uguale('le corde smorzate restano zitte anche col capotasto',
+    conMute.map((x) => (x === null ? 'x' : 'suona')),
+    accordo('C').tasti.map((x) => (x < 0 ? 'x' : 'suona')));
+
+  // E il nome: la forma del Sol col capotasto al 2° suona un LA. E' tutto il motivo
+  // per cui il capotasto esiste - suonare in tonalita' scomode con le forme facili.
+  t.uguale('la forma del Sol col capotasto al 2° suona La', trasponi('G', 2), 'A');
+  t.uguale('la forma del Do col capotasto al 3° suona Mib', trasponi('C', 3, true), 'Eb');
+  t.uguale('la forma del Mi minore col capotasto al 5° suona La minore', trasponi('Em', 5), 'Am');
+
+  // Zero capotasto non deve cambiare niente: e' il caso normale, e una regressione qui
+  // romperebbe tutto il resto dell'app senza toccare il capotasto.
+  t.uguale('senza capotasto le frequenze sono quelle di sempre',
+    frequenzeDi(accordo('E').tasti, tun, 0, 440).map((x) => (x === null ? null : Math.round(x * 100) / 100)),
+    accordo('E').tasti.map((tf, i) => (tf < 0 ? null : Math.round(hzDaMidi(tun.corde[i].midi + tf) * 100) / 100)));
+
+  // Il Mi basso col capotasto al 5° diventa un La: 110 Hz, dentro la banda di analisi.
+  const miAl5 = frequenzeDi([0, -1, -1, -1, -1, -1], tun, 5, 440)[0];
+  t.ok('il Mi basso col capotasto al 5° fa 110 Hz', Math.abs(miAl5 - 110) < 0.1, `${miAl5.toFixed(2)} Hz`);
+
+  t.ok('il capotasto non si spinge oltre il settimo tasto', CAPOTASTO_MAX === 7, String(CAPOTASTO_MAX));
+
+  // ── E il microfono? La prova che ha trovato il difetto ────────────────────
+  //
+  // Le frequenze giuste NON BASTANO. Le note ammesse si ricavano dal NOME dell'accordo, e
+  // con il capotasto il nome cambia: la forma del Sol suona un La. Spostando le frequenze
+  // ma non il nome, ogni nota suonata risulta "estranea" - misurato: energia estranea a
+  // 1,00 su accordi suonati benissimo, cioe' il giro a tuo tempo non sarebbe mai avanzato.
+  //
+  // Questa prova esiste perche' quel difetto e' passato attraverso tutte le altre: le
+  // frequenze erano giuste, la presenza funzionava, e il collaudo era verde.
+  t.asincrono = async () => {
+    const ctx = await preparaContesto(t);
+    if (!ctx) return;
+    for (const capo of [0, 2, 5, 7]) {
+      for (const forma of ['G', 'Em', 'C']) {
+        const acc = accordo(forma);
+        const suonato = frequenzeDi(acc.tasti, tun, capo, 440);
+        const b = bancoAcciaio(ctx, suonato);
+        await attendiAudio(ctx, 240);
+        const asc = new Ascoltatore(b.an);
+        for (let i = 0; i < 3; i += 1) { asc.campiona(); await attendiAudio(ctx, 25); }
+        const v = asc.verifica(suonato);
+        const estranea = energiaEstranea(asc, classiAttese(nomeSuonato(forma, capo)).ammesse);
+        b.chiudi();
+        const dice = capo === 0 ? forma : `${forma} col capotasto al ${capo}° (suona ${nomeSuonato(forma, capo)})`;
+        t.ok(`${dice}: nessuna corda risulta muta`, v.ok,
+          `mancanti ${v.mancanti.map((m, i) => (m ? NUMERI_CORDA[i] : '')).filter(Boolean).join(' ')}`);
+        t.ok(`${dice}: niente di estraneo`, estranea <= SOGLIA_ESTRANEA,
+          `${estranea.toFixed(2)} contro soglia ${SOGLIA_ESTRANEA}`);
+      }
+    }
+    await ctx.close();
+  };
 });
 
 // ── F. Accordature ───────────────────────────────────────────────────────────

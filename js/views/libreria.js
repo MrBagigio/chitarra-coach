@@ -14,7 +14,7 @@ import { posizioniDi, distanzaOttave } from '../voicing.js';
 import { diagramma, legendaDita, NOMI_DITA } from '../diagram.js';
 import { BRANI, accordiDi } from '../songs.js';
 import { RITMI, SIMBOLI, etichette } from '../patterns.js';
-import { accordatura, ID_DIAGRAMMI } from '../tunings.js';
+import { accordatura, ID_DIAGRAMMI, frequenzeDi } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { sblocca, suonaPennata } from '../audio.js';
 import * as curriculum from '../curriculum.js';
@@ -206,7 +206,7 @@ function dettaglio(radice, ctx) {
       h('div', { class: 'accordo-grande' }, diagramma(acc, { tasti: Math.max(4, Math.min(5, tastoAlto(acc))) })),
       bottone('Ascolta com\'è', () => {
         sblocca();
-        suonaPennata(acc.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4))));
+        suonaPennata(frequenzeDi(acc.tasti, tun, d.capotasto, d.la4));
       }, { classe: 'grande' }),
       tun.id !== ID_DIAGRAMMI
         ? h('p', { class: 'avviso attenzione', testo: `Attenzione: hai scelto l'accordatura ${tun.nome}. I diagrammi valgono per la standard EADGBE — su un'altra accordatura queste posizioni danno altre note.` })

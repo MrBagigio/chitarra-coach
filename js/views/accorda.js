@@ -115,6 +115,18 @@ export function monta(radice, ctx) {
   const avviso = h('div', { class: 'avviso nascosto' });
   const esito = h('p', { class: 'dim piccolo', testo: ISTRUZIONI_CORDE });
 
+  // Con il capotasto messo le corde a vuoto non sono più quelle: la 6ª col capotasto al
+  // 2° suona Fa♯, non Mi. Questo accordatore misura le corde VERE, quindi le direbbe
+  // tutte crescenti di due semitoni. Meglio dirlo qui che lasciarlo scoprire girando
+  // le chiavi — ed è anche il consiglio giusto: con il capotasto le corde si tendono, e
+  // accordare così porta lo strumento fuori appena lo togli.
+  const avvisoCapotasto = d.capotasto
+    ? h('p', {
+      class: 'avviso attenzione',
+      testo: `Hai il capotasto al ${d.capotasto}° tasto: toglilo per accordare. Con il capotasto messo le corde suonano ${d.capotasto} semitoni più in alto, e l'accordatore te le direbbe tutte crescenti.`,
+    })
+    : null;
+
   const bottoneMic = bottone('Attiva il microfono', avviaMic, { classe: 'grande' });
   const bottoneStop = bottone('Chiudi il microfono', () => { fermaTutto(); statoMic(false); }, { classe: 'sottile nascosto' });
 
@@ -125,7 +137,7 @@ export function monta(radice, ctx) {
   aggiungi(radice,
     titoloPagina('Accordatore', 'Serve il microfono: resta tutto sul telefono, niente esce da qui.'),
     scheda(h('div', { class: 'riga-campi' }, selettore), dettaglio),
-    scheda(misuratore, bottoneMic, bottoneStop, avviso, modo, corde, esito),
+    scheda(misuratore, bottoneMic, bottoneStop, avviso, avvisoCapotasto, modo, corde, esito),
     scheda(
       h('p', { class: 'occhiello', testo: 'Se è la prima volta' }),
       h('ol', { class: 'elenco' },

@@ -1,3 +1,6 @@
+import { hzDaMidi } from './pitch.js';
+import { trasponi } from './theory.js';
+
 // Accordature della chitarra. `corde` va SEMPRE dalla 6ª (il Mi basso) alla 1ª (il Mi
 // cantino): è l'ordine in cui si leggono i diagrammi di tutti i libri di accordi, cioè
 // da sinistra a destra guardando lo strumento di fronte.
@@ -73,6 +76,41 @@ export const ACCORDATURE = [
     ],
   },
 ];
+
+/** Fin dove si mette il capotasto mobile: oltre il settimo tasto non ci sta più la mano. */
+export const CAPOTASTO_MAX = 7;
+
+/**
+ * Le frequenze che una presa produce DAVVERO, capotasto compreso.
+ *
+ * Esiste per un motivo che questo progetto ha già pagato una volta: il calcolo era
+ * scritto a mano in otto viste diverse, tutte uguali. Aggiungere il capotasto in sette
+ * su otto avrebbe lasciato in giro una schermata che ascolta le frequenze sbagliate —
+ * cioè che dice "manca la 4ª corda" a chi sta suonando benissimo, e senza nessun errore
+ * visibile da nessuna parte. È lo stesso difetto della finestra di analisi, e la cura è
+ * la stessa: un posto solo che lo sa fare.
+ *
+ * Il capotasto alza tutto di N semitoni: la 6ª corda a vuoto col capotasto al 2° non è
+ * più un Mi ma un Fa♯. Le FORME non cambiano — è tutto il punto del capotasto — cambia
+ * quello che esce.
+ */
+export function frequenzeDi(tasti, tun, capotasto = 0, la4 = 440) {
+  return tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + capotasto + t, la4)));
+}
+
+/**
+ * Come si chiama DAVVERO l'accordo che stai suonando, capotasto compreso.
+ *
+ * Sta qui accanto a `frequenzeDi` perché è la stessa domanda posta in un altro modo, e
+ * perché dimenticarla è già costato: le frequenze erano state spostate col capotasto, le
+ * CLASSI DI ALTEZZA ammesse no — quelle si ricavano dal nome, e il nome non era stato
+ * trasposto. Risultato misurato: con il capotasto al 2° l'energia su note "estranee"
+ * andava a 1,00 su ogni accordo suonato bene, cioè il giro a tuo tempo non sarebbe mai
+ * avanzato. Le frequenze giuste non bastano se il nome resta quello della forma.
+ */
+export function nomeSuonato(nomeAccordo, capotasto = 0) {
+  return capotasto ? trasponi(nomeAccordo, capotasto) : nomeAccordo;
+}
 
 export const PER_ID = new Map(ACCORDATURE.map((a) => [a.id, a]));
 
