@@ -137,15 +137,26 @@ export class Ascoltatore {
     return { lista, massimo };
   }
 
-  /** Vettore di 12 classi di altezza, normalizzato al massimo. */
+  /**
+   * Vettore di 12 classi di altezza, normalizzato al massimo — SENZA gli armonici.
+   *
+   * Un picco che sta a un multiplo intero esatto di un picco più grave non è una nota
+   * che stai suonando: è un armonico di quella. Contarlo come nota è il difetto che
+   * rendeva quasi impossibile giudicare un accordo di chitarra, e non era una questione
+   * di soglia — vedi `SOGLIA_ESTRANEA` più sotto per i numeri.
+   *
+   * La lista arriva già ordinata per frequenza crescente (`picchi()` scorre i bin dal
+   * basso), quindi il "genitore" di un armonico è sempre già stato visto.
+   */
   chroma() {
     const { lista, massimo } = this.picchi();
     const v = new Float32Array(12);
     if (!lista.length) return v;
-    lista.forEach(({ hz, db }) => {
+    lista.forEach(({ hz, db }, i) => {
+      if (armonicoDi(lista, i) >= 0) return;
       const midi = 69 + 12 * Math.log2(hz / 440);
       const pc = ((Math.round(midi) % 12) + 12) % 12;
-      // Peso lineare rispetto al picco più forte: 0 dB → 1, −26 dB → 0.
+      // Peso lineare rispetto al picco più forte: 0 dB → 1, −30 dB → 0.
       v[pc] += Math.max(0, 1 + (db - massimo) / SOGLIA_PICCO_DB);
     });
     const max = Math.max(...v);
@@ -194,29 +205,89 @@ export class Ascoltatore {
   }
 }
 
+// ── Riconoscere un armonico ──────────────────────────────────────────────────
+
+// Fin dove arrivano gli armonici DENTRO la banda, e il numero si ricava invece di
+// sceglierlo: la nota più grave che l'app deve leggere è il Re2 del Drop D a 73,42 Hz, la
+// banda finisce a 950, e 950/73,42 fa 12,9. Oltre il dodicesimo parziale si esce, punto.
+const K_MASSIMO = 12;
+const TOLLERANZA_ARMONICO = 25;   // centesimi
+const MARGINE_GENITORE_DB = 6;    // di quanto il genitore può essere PIÙ DEBOLE del figlio
+
+/**
+ * Se il picco `i` è un armonico di un picco più grave, dice quale. Altrimenti −1.
+ *
+ * Tre numeri, e ognuno ha una ragione fisica, non una taratura:
+ *
+ * `TOLLERANZA_ARMONICO = 25 centesimi`. Una corda d'acciaio non ha armoniche a n×f
+ * esatti: la rigidità le stira, e stanno a n·f·√(1+Bn²). Su una corda avvolta grave
+ * (B ≈ 1e-4) l'ottava armonica è 5,5 centesimi sopra il suo posto teorico. Servono
+ * quindi più di una manciata di centesimi. Ma non troppi: una settima minore in
+ * temperamento equabile cade 31 centesimi sotto la settima armonica, e a 31 il
+ * programma comincerebbe a cancellare note davvero suonate. Venticinque sta comodo
+ * in mezzo, e la misura è PIATTA da 15 a 40 — il numero non è delicato.
+ *
+ * `MARGINE_GENITORE_DB = 6`: il genitore può essere fino a 6 dB più debole del figlio.
+ * Sembra strano e non lo è: su una corda pizzicata la seconda armonica è spesso più
+ * forte della fondamentale. Pretendere un genitore più forte faceva scendere il
+ * guadagno da 0,39 a 0,03 — cioè quasi tutto.
+ *
+ * `K_MASSIMO`: fermarsi all'ottavo parziale sembrava prudente e lasciava passare un
+ * fantasma preciso. L'undicesima armonica cade 551 centesimi sopra la fondamentale —
+ * cioè quasi esattamente in mezzo fra la quarta e il tritono — e arrotonda al tritono:
+ * un Mi basso da solo, suonato brillante, "conteneva" un La♯ a 0,296 che nessuno aveva
+ * suonato. Con dodici il fantasma sparisce, e non si rischia di cancellare note vere:
+ * le armoniche 11ª e 13ª cadono 50 e 40 centesimi lontano da qualunque nota del
+ * temperamento equabile, quindi ben fuori dalla tolleranza di 25.
+ */
+function armonicoDi(lista, i) {
+  const p = lista[i];
+  for (let j = 0; j < i; j += 1) {
+    const q = lista[j];
+    const k = Math.round(p.hz / q.hz);
+    if (k < 2 || k > K_MASSIMO) continue;
+    if (Math.abs(1200 * Math.log2(p.hz / (q.hz * k))) > TOLLERANZA_ARMONICO) continue;
+    if (q.db < p.db - MARGINE_GENITORE_DB) continue;
+    return j;
+  }
+  return -1;
+}
+
 /**
  * Soglia sotto la quale l'energia su note estranee è solo il rumore degli armonici.
  *
- * MISURATA sulla chitarra, non ereditata. Il valore dell'ukulele era 0,30, e copiarlo
- * qui sarebbe stato un errore silenzioso: sulla chitarra 0,30 cade sotto il peggiore
- * degli accordi GIUSTI, cioè accuserebbe di stonare chi ha suonato bene.
+ * MISURATA sulla chitarra su DUE banchi, e derivata dal peggiore dei due.
  *
- * Le due popolazioni, misurate su dodici accordi giusti e dieci scambi (finestra 8192):
+ * Il primo valore scelto qui fu 0,38, misurato sulla corda modellata (Karplus-Strong):
+ * giusti 0,16–0,30 contro sbagliati 0,46–1,00, con 0,08 di margine per lato. Sembrava
+ * stretto ma sufficiente. Non lo era, e a dirlo è stato un banco più cattivo.
  *
- *   accordi suonati bene      0,16 – 0,30   (il peggiore è il Sol7)
- *   accordo diverso dall'atteso 0,46 – 1,00   (il più mimetico è Mi minore per Mi)
+ * Il Karplus-Strong ha armoniche PERFETTE, a n×f esatti, e un timbro morbido. Una corda
+ * d'acciaio no: la rigidità stira le armoniche (n·f·√(1+Bn²)) e il timbro è molto più
+ * brillante. Rifacendo la stessa misura su un banco così — che è quello che hai in mano,
+ * non quello che è comodo simulare:
  *
- * Il vuoto fra le due sta fra 0,30 e 0,46, e la soglia si mette in mezzo. Il margine è
- * 0,08 da una parte e 0,08 dall'altra — molto più stretto del fattore quattro che c'era
- * sull'ukulele, e il motivo è fisico: con quattro ottave di banda gli armonici del basso
- * cadono su note vere, quindi il pavimento dei "giusti" è alto per costruzione.
+ *                              senza soppressione      con soppressione degli armonici
+ *   corda modellata   giusti      ≤ 0,317                  ≤ 0,000
+ *                     sbagliati   ≥ 0,437                  ≥ 0,959       vuoto 0,12 → 0,96
+ *   corda d'acciaio   giusti      ≤ 0,432                  ≤ 0,023
+ *                     sbagliati   ≥ 0,501                  ≥ 0,416       vuoto 0,07 → 0,39
  *
- * Quel margine stretto va tenuto d'occhio: su una chitarra molto brillante — corde nuove,
- * plettro duro, pennata vicino al ponte — si assottiglia ancora. Il modo in cui cede però
- * è quello giusto: il programma si rifiuta di avanzare e chiede di ripennare, non avanza
- * su un accordo sbagliato.
+ * La riga che conta è la terza: su una chitarra brillante gli accordi GIUSTI arrivavano
+ * a 0,432, cioè sopra la soglia di 0,38 — l'app avrebbe detto "ripenna" a chi aveva
+ * suonato bene, e la colpa non era della soglia. Era che gli armonici del basso venivano
+ * contati come note: su quattro ottave di banda il 3° armonico è una quinta e il 5° una
+ * terza maggiore, e su un accordo minore quella terza è precisamente la nota vietata.
+ *
+ * Tolti gli armonici, il pavimento dei giusti crolla da 0,43 a 0,02 e il vincolo diventa
+ * l'intervallo 0,023–0,416 del banco d'acciaio. La soglia si mette in mezzo: 0,22, con
+ * 0,20 di margine da entrambe le parti invece di 0,07.
+ *
+ * Resta un limite dichiarato: nessuno dei due banchi ha la stanza, il fruscio del
+ * plettro o le risonanze della cassa, che aggiungono picchi NON armonici e quindi
+ * alzeranno un po' il pavimento dei giusti. I 0,20 di margine servono a quello.
  */
-export const SOGLIA_ESTRANEA = 0.38;
+export const SOGLIA_ESTRANEA = 0.22;
 
 /**
  * Quanto suona forte la nota più estranea all'accordo.

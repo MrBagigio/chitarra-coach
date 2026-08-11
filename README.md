@@ -59,39 +59,69 @@ deve esserci.
 **`pitch.js` invece non è stato toccato di una riga**, e passa tutte le prove sul Mi basso
 a 82,41 Hz e sul Re del Drop D. Era la previsione del documento d'avvio, ed era giusta.
 
-### 2. La finestra di analisi: il difetto che la soglia nascondeva
+### 2. Due difetti che la soglia nascondeva
 
-La soglia dell'energia estranea andava rimisurata, e infatti era sbagliata (0,30
-dell'ukulele contro 0,38 misurato qui). Ma sotto c'era un difetto peggiore, e non era una
-soglia.
+La soglia dell'energia estranea andava rimisurata. Rimisurandola sono usciti due difetti
+sotto, e nessuno dei due era una soglia.
 
-Due picchi vicini nello spettro si distinguono solo se distano più o meno quanto è largo
-il lobo della finestra. Le due note più vicine che una chitarra mette in basso sono **Si2
-(123,47 Hz) e Re3 (146,83): 23 Hz**. Con 4096 campioni a 44,1 kHz una casella vale 10,8 Hz
-— quelle due note stanno a due caselle e **si fondono in una gobba sola**.
+**Primo: la finestra troppo corta.** Due picchi vicini nello spettro si distinguono solo
+se distano più o meno quanto è largo il lobo della finestra. Le due note più vicine che
+una chitarra mette in basso sono **Si2 (123,47 Hz) e Re3 (146,83): 23 Hz**. Con 4096
+campioni a 44,1 kHz una casella vale 10,8 Hz — quelle due note stanno a due caselle e **si
+fondono in una gobba sola**, e il programma dichiarava mute delle corde che suonavano.
 
-Misurato sullo stesso banco che gira nel collaudo:
+| finestra | corde dichiarate mute per sbaglio | vuoto fra giusti e sbagliati |
+|---|---|---|
+| 4096 (93 ms) | Sol, Mi7, Sol7 — due corde ciascuno | −0,05 · **sovrapposti** |
+| 8192 (186 ms) | nessuna | +0,12 |
+| 16384 (372 ms) | nessuna | +0,12, con il doppio del ritardo |
 
-| finestra | corde dichiarate mute per sbaglio | accordi giusti | accordi sbagliati | vuoto |
+Con 4096 le due popolazioni si sovrappongono: **nessuna soglia avrebbe potuto separarle**.
+
+**Secondo: gli armonici contati come note.** Sistemata la finestra, il margine restava di
+0,08 per lato — stretto, e con una ragione strutturale. Su quattro ottave di banda, del
+Mi basso entrano dentro il 3° armonico (una **quinta**) e il 5° (una **terza maggiore**):
+su un accordo minore quella terza è precisamente la nota vietata. Il pavimento degli
+accordi giusti era alto per costruzione.
+
+A dire quanto fosse grave è stato un banco nuovo. Il Karplus-Strong ha armoniche perfette
+e timbro morbido; una corda d'acciaio ha la rigidità che stira le armoniche
+(n·f·√(1+Bn²)) e un timbro molto più brillante. Rifacendo la misura su quello:
+
+| banco | soppressione armonici | accordi giusti | accordi sbagliati | vuoto |
 |---|---|---|---|---|
-| 4096 (93 ms) | Sol, Mi7, Sol7 — due corde ciascuno | 0,11 – **0,51** | **0,46** – 1,00 | −0,05 · **sovrapposti** |
-| 8192 (186 ms) | nessuna | 0,16 – **0,30** | **0,46** – 1,00 | +0,16 |
-| 16384 (372 ms) | nessuna | 0,16 – 0,29 | 0,46 – 1,00 | +0,17 |
+| acciaio brillante | no | ≤ **0,432** | ≥ 0,501 | **0,069** |
+| acciaio brillante | **sì** | ≤ 0,000 | ≥ 0,416 | **0,416** |
+| Karplus-Strong | no | ≤ 0,317 | ≥ 0,437 | 0,120 |
+| Karplus-Strong | **sì** | ≤ 0,000 | ≥ 0,970 | 0,970 |
 
-Con 4096 le due popolazioni si sovrappongono: **nessuna soglia avrebbe potuto separarle**,
-e cercare il numero giusto sarebbe stato tempo perso su un sintomo. Con 8192 si apre un
-vuoto fra 0,30 e 0,46 e la soglia si mette in mezzo, a **0,38**. 16384 non aggiunge niente
-e raddoppia il ritardo.
+La riga che conta è la prima: **con la soglia a 0,38 e una chitarra brillante, gli accordi
+GIUSTI arrivavano a 0,432** — l'app avrebbe detto «ripenna» a chi aveva suonato bene, e
+nessuna delle prove precedenti se ne sarebbe accorta.
 
-Il margine è 0,08 da un lato e 0,08 dall'altro, molto più stretto del fattore quattro che
-c'era sull'ukulele, e il motivo è fisico (vedi sopra: gli armonici del basso cadono su
-note vere). Su una chitarra molto brillante — corde nuove, plettro duro, pennata vicino al
-ponte — si assottiglia ancora. Il modo in cui cede però è quello giusto: il programma si
-rifiuta di avanzare e chiede di ripennare, non avanza sull'accordo sbagliato.
+La cura è riconoscere gli armonici: un picco che sta a un multiplo intero esatto di un
+picco più grave non è una nota che stai suonando. Tolti, il pavimento crolla da 0,43 a
+0,00 e la soglia scende a **0,22**, con **0,22 di margine sopra e 0,20 sotto** invece di
+0,08 e 0,08.
 
-`Ascoltatore` ora **si rifiuta di nascere** con una finestra più corta, e c'è un solo
-punto che la crea (`analizzatoreAccordo`): il numero era scritto a mano in tre viste, e
-bastava aggiornarne due per lasciare in giro una schermata che accusa chi suona bene.
+Tre numeri, e ognuno ha una ragione fisica invece di una taratura:
+
+- **tolleranza 25 centesimi** — la rigidità di una corda avvolta grave (B ≈ 1e-4) porta
+  l'ottava armonica 5,5 centesimi sopra il suo posto teorico; ma una settima minore
+  temperata cade 31 centesimi sotto la settima armonica, e oltre quella soglia il
+  programma comincerebbe a cancellare note davvero suonate. La misura è piatta da 15 a 40.
+- **il genitore può essere fino a 6 dB più debole del figlio** — su una corda pizzicata la
+  seconda armonica è spesso più forte della fondamentale. Pretendere un genitore più forte
+  faceva scendere il guadagno da 0,39 a 0,03.
+- **fino al 12° parziale** — si ricava: la nota più grave è il Re2 del Drop D a 73,42 Hz,
+  la banda finisce a 950, e 950/73,42 fa 12,9. Fermandosi all'8° restava un fantasma
+  preciso: l'**11ª armonica** cade 551 centesimi sopra, cioè quasi in mezzo fra la quarta
+  e il tritono, e arrotonda al tritono — un Mi basso da solo "conteneva" un La♯ a 0,296 che
+  nessuno aveva suonato. Lo ha trovato la prova nuova, il giorno stesso in cui è nata.
+
+`Ascoltatore` **si rifiuta di nascere** con una finestra più corta, e c'è un solo punto che
+la crea (`analizzatoreAccordo`): il numero era scritto a mano in tre viste, e bastava
+aggiornarne due per lasciare in giro una schermata che accusa chi suona bene.
 
 ### 3. Sei corde, e la ✕ come argomento
 
@@ -107,9 +137,23 @@ esattamente quello che si legge in qualunque metodo.
 
 ## Il collaudo
 
-`collaudo.html` esegue **~2900 prove** nel browser, senza niente di installato e senza
+`collaudo.html` esegue **~3200 prove** nel browser, senza niente di installato e senza
 microfono: verifica i dati (accordi, ritmi, brani, ordine del percorso) e misura gli
 algoritmi audio su segnali sintetizzati, così il verdetto non dipende dalla stanza.
+
+Due gruppi meritano una riga a parte, perché sono nati da domande a cui non bastava
+rispondere «sembra funzionare»:
+
+- **Corda d'acciaio** — lo stesso confronto degli altri gruppi, ma su un banco con le
+  armoniche stirate dalla rigidità e il timbro brillante. È il banco *vincolante*: la
+  soglia si deriva da lui, non dal modello comodo, perché è lui che assomiglia allo
+  strumento che hai in mano. Contiene anche la prova più diretta del meccanismo — un Mi
+  basso **da solo** non deve contenere nessun'altra nota.
+- **Disturbi che prima erano fuori banda** — allargando l'analisi fino a 70 Hz per vedere
+  il Mi basso, ci sono entrati dentro il ronzio della rete e il rimbombo della stanza.
+  Il gruppo verifica che non diventino note, e misura di quanto sbaglia l'accordatore col
+  rimbombo addosso (meno di 12 centesimi su tutte e sei le corde, mai un errore d'ottava).
+  Le soglie di sensibilità **non** sono state cambiate: misurate, non serviva.
 
 Le righe con ▸ sono **misure, non prove**: restano visibili anche col filtro "mostra solo
 quello che non va", perché sono i numeri da cui si derivano le soglie. Una soglia si

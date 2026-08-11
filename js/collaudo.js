@@ -17,7 +17,9 @@ import { diagramma, legendaDita } from './diagram.js';
 import { BRANI, accordiDi, branoTrasportato, branoSeEsiste } from './songs.js';
 import { LIVELLI, PASSI } from './curriculum.js';
 import { ACCORDATURE, accordatura } from './tunings.js';
-import { classiAttese, scomponi, trasponi, classeNota, tonalitaProbabile } from './theory.js';
+import {
+  classiAttese, scomponi, trasponi, classeNota, nomeClasse, tonalitaProbabile,
+} from './theory.js';
 import {
   Rilevatore, centesimi, hzDaMidi, decisioneDisplay, spuntaDaTogliere, msDentroFinestra,
 } from './pitch.js';
@@ -543,6 +545,114 @@ gruppo('Accordatore — quanto sbaglia, in centesimi', (t) => {
   };
 });
 
+// -- G2. Cosa fa l'accordatore quando NON stai suonando -----------------------
+
+/**
+ * Le soglie di sensibilita' sono le uniche arrivate dall'ukulele senza essere rimisurate:
+ * `sogliaRms` 0,006 e `sogliaChiarezza` 0,55 in pitch.js. Questo gruppo le mette alla
+ * prova sui disturbi che PRIMA erano fuori banda e adesso non lo sono piu': allargando
+ * l'analisi fino a 70 Hz per vedere il Mi basso, ci sono entrati dentro anche il ronzio
+ * della rete elettrica e il rimbombo della stanza.
+ *
+ * L'esito della misura e' che non serviva cambiarle, e questo gruppo esiste per impedire
+ * che qualcuno le cambi senza accorgersi di cosa rompe.
+ */
+function bancoRumore(ctx, { hz = 0, armoniche = 8, rumore = 0, righe = null } = {}) {
+  const an = ctx.createAnalyser();
+  an.fftSize = 4096;
+  an.smoothingTimeConstant = 0;
+  const g = ctx.createGain();
+  g.gain.value = 1;
+  g.connect(an);
+  const nodi = [];
+  const tono = (f, amp) => {
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f;
+    const ga = ctx.createGain();
+    ga.gain.value = amp;
+    o.connect(ga).connect(g);
+    o.start();
+    nodi.push(o, ga);
+  };
+  if (hz) for (let n = 1; n <= armoniche; n += 1) tono(hz * n, 0.25 / n);
+  if (righe) righe.forEach(([f, a]) => tono(f, a));
+  if (rumore > 0) {
+    // Rumore pesato in basso: il rimbombo di una stanza, non il fruscio bianco. E' il
+    // disturbo che sta esattamente dove adesso l'app cerca il Mi basso.
+    const buf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let y = 0;
+    for (let i = 0; i < d.length; i += 1) { const b = Math.random() * 2 - 1; y = 0.96 * y + 0.04 * b; d[i] = y * 6 + b * 0.25; }
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const ga = ctx.createGain();
+    ga.gain.value = rumore;
+    src.connect(ga).connect(g);
+    src.start();
+    nodi.push(src, ga);
+  }
+  return { an, chiudi() { nodi.forEach((n) => { try { n.stop(); } catch { /* i gain non si fermano */ } n.disconnect(); }); g.disconnect(); } };
+}
+
+gruppo('Accordatore — sui disturbi che prima erano fuori banda', (t) => {
+  t.asincrono = async () => {
+    const ctx = await preparaContesto(t);
+    if (!ctx) return;
+
+    const leggi = async (opzioni) => {
+      const b = bancoRumore(ctx, opzioni);
+      await attendiAudio(ctx, 300);
+      const r = new Rilevatore(b.an);
+      const letti = [];
+      for (let i = 0; i < 8; i += 1) { const l = r.leggi(); if (l.hz) letti.push(l.hz); }
+      b.chiudi();
+      if (!letti.length) return null;
+      return letti.sort((x, y) => x - y)[Math.floor(letti.length / 2)];
+    };
+
+    // Ronzio di rete: 50 Hz con le sue armoniche. La fondamentale cade SOTTO la banda
+    // (70 Hz) e l'accordatore non deve inventarsi niente.
+    const rete = await leggi({ righe: [[50, 0.25], [100, 0.2], [150, 0.09], [200, 0.05]] });
+    t.ok('il ronzio della rete elettrica non diventa una nota', rete === null,
+      rete ? `ha dichiarato ${rete.toFixed(1)} Hz` : '');
+
+    // Rimbombo di stanza, anche forte.
+    for (const amp of [0.5, 1.5]) {
+      const r = await leggi({ rumore: amp });
+      t.ok(`il rimbombo di stanza (ampiezza ${amp}) non diventa una nota`, r === null,
+        r ? `ha dichiarato ${r.toFixed(1)} Hz` : '');
+    }
+
+    // Il caso onesto: un alimentatore raddrizzato ronza a 100 Hz SENZA i 50. Quella e'
+    // un'altezza vera e l'accordatore la sente, giustamente. Sta 165 centesimi sotto il
+    // La della 5a corda, cioe' esattamente dove starebbe un La montato da poco e ancora
+    // molle: non esiste modo di distinguerli guardando l'altezza, e fingere di saperlo
+    // fare sarebbe una guardia finta. Si dichiara il limite invece di nasconderlo.
+    const cento = await leggi({ righe: [[100, 0.2]] });
+    t.misura('un ronzio a 100 Hz puro viene letto come',
+      cento ? `${cento.toFixed(1)} Hz, a ${Math.abs(centesimi(cento, hzDaMidi(45))).toFixed(0)} centesimi dal La della 5ª — indistinguibile da una corda molto calante` : 'niente');
+
+    // Quanto rumore regge, prima di sbagliare. Tre estrazioni e si prende la MEDIANA:
+    // con una sola, gli errori ballano attorno alla soglia e la prova diventa un
+    // sorteggio. E' successo scrivendola: una singola estrazione diceva che la 5a corda
+    // cedeva al primo gradino, e ripetendo non era vero.
+    for (const [midi, nome] of [[40, '6ª Mi'], [45, '5ª La'], [50, '4ª Re'], [55, '3ª Sol'], [59, '2ª Si'], [64, '1ª Mi']]) {
+      const atteso = hzDaMidi(midi);
+      const errori = [];
+      for (let k = 0; k < 3; k += 1) {
+        const letto = await leggi({ hz: atteso, rumore: 0.2 });
+        errori.push(letto === null ? 999 : Math.abs(centesimi(letto, atteso)));
+      }
+      const mediano = errori.sort((a, b) => a - b)[1];
+      t.ok(`${nome}: con il rimbombo addosso sbaglia meno di 12 centesimi`, mediano <= 12,
+        `${mediano.toFixed(1)} centesimi (le tre prove: ${errori.map((e) => e.toFixed(1)).join(', ')})`);
+    }
+    await ctx.close();
+  };
+});
+
 // ── H. Ascolto dell'accordo (audio sintetico) ────────────────────────────────
 
 function bancoAccordo(ctx, frequenze, { spente = [] } = {}) {
@@ -571,6 +681,13 @@ function bancoAccordo(ctx, frequenze, { spente = [] } = {}) {
     chiudi() { nodi.forEach(([o, ga]) => { o.stop(); o.disconnect(); ga.disconnect(); }); g.disconnect(); },
   };
 }
+
+const CAMPIONE_ACCIAIO = ['E', 'Em', 'A', 'Am', 'D', 'Dm', 'G', 'C', 'E7', 'A7', 'G7', 'Am7'];
+const INGANNI_ACCIAIO = [
+  ['C', 'Am'], ['Am', 'C'], ['Em', 'E'], ['E', 'Em'], ['A', 'Am'], ['D', 'Dm'],
+  ['G', 'Em'], ['C', 'G'], ['Cmaj7', 'C'], ['Am7', 'Am'], ['G6', 'G'], ['Dm', 'D'],
+  ['A7', 'A'], ['E7', 'E'],
+];
 
 const hzDi = (acc, tun) => acc.tasti.map((tasto, i) => (tasto < 0 ? null : 440 * 2 ** ((tun.corde[i].midi + tasto - 69) / 12)));
 
@@ -857,6 +974,135 @@ gruppo('Nota estranea — un accordo lasciato suonare non vale per il successivo
     t.ok('e la sola presenza li avrebbe accettati quasi tutti: è il motivo del controllo',
       passatiPerPresenza >= 3,
       `solo ${passatiPerPresenza} su ${ditoDimenticato.length} passano per presenza — se scende a zero, qui il controllo non serve più`);
+    await ctx.close();
+  };
+});
+
+// -- H4. Il banco che non perdona: la corda d'acciaio -------------------------
+
+/**
+ * Una corda d'acciaio vera, non il modello comodo.
+ *
+ * Il Karplus-Strong degli altri gruppi ha armoniche PERFETTE, a n per f esatti, e un
+ * timbro morbido. Una corda d'acciaio ha due differenze che contano, e tutte e due
+ * giocano contro il programma:
+ *
+ *   La RIGIDITA' stira le armoniche. Non stanno a n*f ma a n*f*sqrt(1+B*n^2): con
+ *   B = 1e-4, che e' una corda avvolta grave, l'ottava armonica cade 5,5 centesimi sopra
+ *   il suo posto teorico e la dodicesima 12,4. Chi riconosce gli armonici deve avere una
+ *   tolleranza che li copra, o smette di riconoscerli proprio dove servirebbe.
+ *
+ *   Il TIMBRO e' molto piu' brillante: ampiezze che scendono come 1/n invece di spegnersi
+ *   in fretta, con il pettine del punto di pizzico. Vuol dire molti piu' armonici alti
+ *   dentro la banda, cioe' molta piu' energia su note che la corda non sta suonando.
+ *
+ * Questo banco esiste perche' il modello comodo diceva che andava tutto bene. Misurando
+ * qui, la soglia scelta su quello (0,38) risultava SOTTO il peggiore degli accordi
+ * giusti: l'app avrebbe detto "ripenna" a chi aveva suonato bene, e nessuna delle prove
+ * precedenti se ne sarebbe accorta.
+ */
+function bancoAcciaio(ctx, frequenze, { B = 1e-4, parziali = 12, pizzico = 0.2 } = {}) {
+  const an = ctx.createAnalyser();
+  an.fftSize = FFT_ACCORDO;
+  an.smoothingTimeConstant = 0;
+  const g = ctx.createGain();
+  g.gain.value = 0.25;
+  g.connect(an);
+  const nodi = [];
+  frequenze.filter(Boolean).forEach((f0) => {
+    for (let n = 1; n <= parziali; n += 1) {
+      const hz = n * f0 * Math.sqrt(1 + B * n * n);
+      if (hz > 12000) break;
+      const amp = (1 / n) * Math.abs(Math.sin(n * Math.PI * pizzico));
+      if (amp < 0.01) continue;
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = hz;
+      const ga = ctx.createGain();
+      ga.gain.value = amp;
+      o.connect(ga).connect(g);
+      o.start();
+      nodi.push([o, ga]);
+    }
+  });
+  return {
+    an,
+    chiudi() { nodi.forEach(([o, ga]) => { o.stop(); o.disconnect(); ga.disconnect(); }); g.disconnect(); },
+  };
+}
+
+gruppo('Corda d\'acciaio \u2014 la soglia regge anche sullo strumento brillante', (t) => {
+  t.asincrono = async () => {
+    const ctx = await preparaContesto(t);
+    if (!ctx) return;
+    const tun = accordatura('eadgbe');
+    const stira = (n, B) => 1200 * Math.log2(Math.sqrt(1 + B * n * n));
+    t.misura('quanto sono stirate le armoniche di questo banco',
+      `5a +${stira(5, 1e-4).toFixed(1)}c \u00b7 8a +${stira(8, 1e-4).toFixed(1)}c \u00b7 12a +${stira(12, 1e-4).toFixed(1)}c \u2014 la tolleranza di 25c le copre tutte`);
+
+    async function misura(suonato, atteso) {
+      const b = bancoAcciaio(ctx, hzDi(accordo(suonato), tun));
+      await attendiAudio(ctx, 240);
+      const asc = new Ascoltatore(b.an);
+      for (let i = 0; i < 3; i += 1) { asc.campiona(); await attendiAudio(ctx, 25); }
+      const estranea = energiaEstranea(asc, classiAttese(atteso).ammesse);
+      b.chiudi();
+      return { estranea };
+    }
+
+    // UNA corda sola: la prova diretta del meccanismo.
+    //
+    // Il Mi basso da solo, suonato brillante, mette in banda anche la sua 3a armonica
+    // (una QUINTA sopra, cioe' un Si) e la 5a (una TERZA MAGGIORE, cioe' un Sol#). Se il
+    // programma le conta come note, un Mi basso da solo "contiene" un Si e un Sol# che
+    // nessuno ha suonato. E' la radice di tutto il problema, in una corda sola.
+    const sola = bancoAcciaio(ctx, [hzDaMidi(40)]);
+    await attendiAudio(ctx, 240);
+    const ascSola = new Ascoltatore(sola.an);
+    for (let i = 0; i < 3; i += 1) { ascSola.campiona(); await attendiAudio(ctx, 25); }
+    const c = ascSola.chroma();
+    sola.chiudi();
+    const mi = classeNota('E');
+    const massimaAltra = [...c].map((v, pc) => ({ v, pc })).filter((x) => x.pc !== mi)
+      .reduce((a, b) => (b.v > a.v ? b : a));
+    t.misura('Mi basso da solo: quanto pesa la classe piu forte che NON e Mi',
+      `${massimaAltra.v.toFixed(3)} su ${nomeClasse(massimaAltra.pc)} \u2014 senza togliere gli armonici ci sarebbero un Si (3a armonica) e un Sol# (5a)`);
+    t.ok('una corda sola non inventa altre note', massimaAltra.v <= 0.2,
+      `${nomeClasse(massimaAltra.pc)} a ${massimaAltra.v.toFixed(3)}`);
+
+    // Le due popolazioni, sul banco cattivo.
+    const giusti = [];
+    for (const id of CAMPIONE_ACCIAIO) {
+      const r = await misura(id, id);
+      giusti.push({ id, v: r.estranea });
+      t.ok(`${id} brillante e suonato bene: niente di estraneo`, r.estranea <= SOGLIA_ESTRANEA,
+        `${r.estranea.toFixed(3)} contro soglia ${SOGLIA_ESTRANEA}`);
+    }
+    const sbagliati = [];
+    for (const [suonato, atteso] of INGANNI_ACCIAIO) {
+      const r = await misura(suonato, atteso);
+      sbagliati.push({ id: `${suonato} per ${atteso}`, v: r.estranea });
+      t.ok(`${suonato} brillante non passa per ${atteso}`, r.estranea > SOGLIA_ESTRANEA,
+        `${r.estranea.toFixed(3)} contro soglia ${SOGLIA_ESTRANEA}`);
+    }
+
+    const pg = giusti.reduce((a, b) => (b.v > a.v ? b : a));
+    const ms = sbagliati.reduce((a, b) => (b.v < a.v ? b : a));
+    t.misura('acciaio \u00b7 accordi GIUSTI',
+      `da ${Math.min(...giusti.map((x) => x.v)).toFixed(3)} a ${pg.v.toFixed(3)} (il peggiore e ${pg.id})`);
+    t.misura('acciaio \u00b7 accordi SBAGLIATI',
+      `da ${ms.v.toFixed(3)} a ${Math.max(...sbagliati.map((x) => x.v)).toFixed(3)} (il piu mimetico e ${ms.id})`);
+    t.misura('acciaio \u00b7 margine della soglia dai due lati',
+      `${SOGLIA_ESTRANEA}: ${(SOGLIA_ESTRANEA - pg.v).toFixed(3)} sopra i giusti, ${(ms.v - SOGLIA_ESTRANEA).toFixed(3)} sotto gli sbagliati`);
+
+    // Questo e' il banco VINCOLANTE: se qui il vuoto si chiude, la soglia va rifatta, e
+    // va rifatta a partire da questi numeri, non da quelli del modello comodo.
+    t.ok('anche sullo strumento brillante resta un vuoto fra giusti e sbagliati',
+      ms.v > pg.v,
+      `giusti fino a ${pg.v.toFixed(3)} (${pg.id}), sbagliati da ${ms.v.toFixed(3)} (${ms.id})`);
+    t.ok('e la soglia ci sta dentro con margine da entrambe le parti',
+      SOGLIA_ESTRANEA - pg.v > 0.05 && ms.v - SOGLIA_ESTRANEA > 0.05,
+      `margini ${(SOGLIA_ESTRANEA - pg.v).toFixed(3)} e ${(ms.v - SOGLIA_ESTRANEA).toFixed(3)}`);
     await ctx.close();
   };
 });
