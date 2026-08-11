@@ -10,6 +10,7 @@
 import {
   ACCORDI, CORDE, NUMERI_CORDA, CORDE_SEMITONI, verificaDiteggiatura, nomeCanonico, accordo,
   ditaRichieste, etichettaDita, bassiDi, cordeSmorzate, ULTIMA_CORDA_DEL_POLLICE,
+  SPESSORE_CORDA, DOVE_CORDA,
 } from './chords.js';
 import { icona, ICONA_PASSO } from './icone.js';
 import { RITMI, etichette, cordeDiCasella, classeDito, usaBassoAlternato } from './patterns.js';
@@ -91,6 +92,21 @@ gruppo('Accordi — le note sono quelle dichiarate', (t) => {
     t.ok(`${a.id}: tasti plausibili`, a.tasti.every((x) => x >= -1 && x <= 12), JSON.stringify(a.tasti));
     t.ok(`${a.id}: difficoltà 1–5`, a.difficolta >= 1 && a.difficolta <= 5, String(a.difficolta));
     t.ok(`${a.id}: ha una famiglia`, !!a.famiglia, 'campo famiglia mancante');
+  });
+
+  // Le corde vanno DISEGNATE con lo spessore vero e descritte a parole: il numero da
+  // solo non dice quale pizzicare, perché si contano dal basso verso l'alto — cioè al
+  // contrario di come si leggono i diagrammi. È il difetto che ha segnalato chi la usava.
+  t.uguale('uno spessore per ogni corda', SPESSORE_CORDA.length, CORDE.length);
+  t.uguale('una descrizione per ogni corda', DOVE_CORDA.length, CORDE.length);
+  t.ok('gli spessori calano dalla 6ª alla 1ª',
+    SPESSORE_CORDA.every((v, i) => i === 0 || v < SPESSORE_CORDA[i - 1]),
+    SPESSORE_CORDA.join(' > '));
+  t.ok('la 6ª è almeno il triplo della 1ª, come su una muta vera',
+    SPESSORE_CORDA[0] / SPESSORE_CORDA[CORDE.length - 1] >= 3,
+    `${(SPESSORE_CORDA[0] / SPESSORE_CORDA[CORDE.length - 1]).toFixed(1)}×`);
+  DOVE_CORDA.forEach((d, i) => {
+    t.ok(`${NUMERI_CORDA[i]}: la descrizione dice dove sta`, !!d && d.length > 10, d);
   });
 
   // La mano ci arriva: quattro tasti di apertura sono già il limite di chi impara.
@@ -543,6 +559,86 @@ gruppo('Accordatore — quanto sbaglia, in centesimi', (t) => {
     t.ok('sul solo rumore non dichiara nessuna nota', !parlato, 'ha dichiarato una nota inventata');
     await ctx.close();
   };
+});
+
+gruppo('Sensibilità — la soglia segue il rumore della stanza, non un numero fisso', (t) => {
+  // Un Rilevatore si può costruire su un analizzatore finto: il costruttore legge solo
+  // tre numeri, e qui interessa la logica della soglia, non la FFT.
+  const finto = () => new Rilevatore({
+    context: { sampleRate: 44100 }, fftSize: 2048, frequencyBinCount: 1024,
+  });
+  const nutri = (r, valore, quante) => { for (let i = 0; i < quante; i += 1) r._aggiornaPavimento(valore); };
+
+  const appena = finto();
+  t.uguale('appena acceso non inventa una stima', appena.pavimento, null);
+  t.uguale('e si comporta come prima: soglia al minimo assoluto', appena.soglia(), 0.006);
+
+  // Stanza silenziosa: la soglia NON scende sotto il minimo assoluto, altrimenti
+  // qualunque fruscio del convertitore diventerebbe una nota.
+  const muta = finto();
+  nutri(muta, 0.00002, 300);
+  t.ok('in una stanza mutissima la soglia resta al minimo assoluto', muta.soglia() === 0.006,
+    `pavimento ${muta.pavimento}, soglia ${muta.soglia()}`);
+
+  // Stanza rumorosa: la soglia sale sopra il rumore.
+  const ventola = finto();
+  nutri(ventola, 0.01, 300);
+  t.ok('con una ventola la soglia sale sopra il rumore', ventola.soglia() > 0.006 && ventola.soglia() > 0.01,
+    `pavimento ${ventola.pavimento.toFixed(4)}, soglia ${ventola.soglia().toFixed(4)}`);
+  t.ok('ma non oltre il tetto: sordo è peggio di prudente', ventola.soglia() <= 0.05,
+    `${ventola.soglia().toFixed(4)}`);
+
+  const cantiere = finto();
+  nutri(cantiere, 0.4, 300);
+  t.uguale('in una stanza rumorosissima la soglia si ferma al tetto', cantiere.soglia(), 0.05);
+
+  /**
+   * Il difetto vero, e il motivo per cui il pavimento si aggiorna SOLO dove non c'è nota.
+   *
+   * Una corda pizzicata si spegne per secondi. Un pavimento nutrito anche mentre la
+   * corda suona finisce per inseguirla: la soglia sta un fattore sopra il pavimento,
+   * quindi finisce sopra il segnale, e l'app dichiara silenzio su una nota che si sente
+   * ancora. Qui si simula lo stesso decadimento con le due politiche, e il metro di
+   * paragone è quello giusto: la SOGLIA FISSA di prima. La versione adattiva non deve
+   * essere più sorda di quella in una stanza silenziosa — se lo fosse, questa modifica
+   * sarebbe un peggioramento travestito da miglioramento.
+   */
+  const decadimento = (aggiornaSempre) => {
+    const r = finto();
+    let muta = 0;
+    for (let i = 0; i < 160; i += 1) {
+      const rms = 0.2 * Math.exp(-i / 26);            // una pennata che si spegne
+      const nota = rms >= r.soglia();
+      if (aggiornaSempre || !nota) r._aggiornaPavimento(rms);
+      if (!nota) muta += 1;
+    }
+    return muta;
+  };
+  let fissa = 0;
+  for (let i = 0; i < 160; i += 1) if (0.2 * Math.exp(-i / 26) < 0.006) fissa += 1;
+
+  const sempre = decadimento(true);
+  const soloSenzaNota = decadimento(false);
+  t.misura('corda che si spegne · quante letture vengono dichiarate mute',
+    `soglia fissa di prima: ${fissa} · aggiornando il pavimento sempre: ${sempre} · solo dove non c'è nota: ${soloSenzaNota} (su 160)`);
+  t.ok('aggiornare il pavimento anche sotto la nota renderebbe l\'app più sorda di prima',
+    sempre > fissa, `${sempre} contro ${fissa}: se un giorno diventano uguali, questa prova non dimostra più niente`);
+  t.ok('aggiornandolo solo dove non c\'è nota non si perde niente rispetto alla soglia fissa',
+    soloSenzaNota <= fissa, `${soloSenzaNota} contro ${fissa}`);
+
+  // Un ronzio che dura più dell'intera finestra invece DEVE alzare il pavimento: quello
+  // è davvero il rumore della stanza, non una nota.
+  const ronzio = finto();
+  nutri(ronzio, 0.0008, 60);
+  nutri(ronzio, 0.012, 400);
+  t.ok('un ronzio che non finisce più diventa il nuovo rumore di fondo', ronzio.pavimento >= 0.011,
+    `pavimento ${ronzio.pavimento.toFixed(4)}`);
+
+  // La barra del livello: monotona, e con i due estremi agganciati.
+  const r = finto();
+  t.ok('il livello cresce col volume', r.livello(0.0005) < r.livello(0.01) && r.livello(0.01) < r.livello(0.4));
+  t.ok('il livello sta fra 0 e 1', [1e-9, 1e-4, 0.01, 0.5, 3].every((x) => r.livello(x) >= 0 && r.livello(x) <= 1));
+  t.uguale('il silenzio assoluto è a fondo scala', r.livello(0), 0);
 });
 
 // -- G2. Cosa fa l'accordatore quando NON stai suonando -----------------------

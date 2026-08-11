@@ -207,10 +207,15 @@ export class Ascoltatore {
 
 // ── Riconoscere un armonico ──────────────────────────────────────────────────
 
-// Fin dove arrivano gli armonici DENTRO la banda, e il numero si ricava invece di
-// sceglierlo: la nota più grave che l'app deve leggere è il Re2 del Drop D a 73,42 Hz, la
-// banda finisce a 950, e 950/73,42 fa 12,9. Oltre il dodicesimo parziale si esce, punto.
-const K_MASSIMO = 12;
+// Fin dove arrivano gli armonici DENTRO la banda. Non è un numero scelto: è quello che
+// la banda permette. Perché un armonico sia visibile servono due picchi entrambi in
+// banda — il genitore sopra HZ_MIN e il figlio sotto HZ_MAX — quindi il rapporto massimo
+// fra i due è HZ_MAX/HZ_MIN e basta.
+//
+// Scritto così, lo stesso file dà 13 sulla chitarra (banda 70–950) e 3 sull'ukulele
+// (banda 240–950), che sono i due valori giusti. Scritto a mano sarebbe stato un numero
+// da ricordarsi di cambiare, cioè un numero da sbagliare.
+const K_MASSIMO = Math.floor(HZ_MAX / HZ_MIN);
 const TOLLERANZA_ARMONICO = 25;   // centesimi
 const MARGINE_GENITORE_DB = 6;    // di quanto il genitore può essere PIÙ DEBOLE del figlio
 
@@ -232,13 +237,14 @@ const MARGINE_GENITORE_DB = 6;    // di quanto il genitore può essere PIÙ DEBO
  * forte della fondamentale. Pretendere un genitore più forte faceva scendere il
  * guadagno da 0,39 a 0,03 — cioè quasi tutto.
  *
- * `K_MASSIMO`: fermarsi all'ottavo parziale sembrava prudente e lasciava passare un
- * fantasma preciso. L'undicesima armonica cade 551 centesimi sopra la fondamentale —
- * cioè quasi esattamente in mezzo fra la quarta e il tritono — e arrotonda al tritono:
- * un Mi basso da solo, suonato brillante, "conteneva" un La♯ a 0,296 che nessuno aveva
- * suonato. Con dodici il fantasma sparisce, e non si rischia di cancellare note vere:
- * le armoniche 11ª e 13ª cadono 50 e 40 centesimi lontano da qualunque nota del
- * temperamento equabile, quindi ben fuori dalla tolleranza di 25.
+ * `K_MASSIMO` si ricava dalla banda (vedi sopra). Fermarsi prima sembrava prudente e
+ * lasciava passare un fantasma preciso: l'undicesima armonica cade 551 centesimi sopra
+ * la fondamentale — cioè quasi esattamente in mezzo fra la quarta e il tritono — e
+ * arrotonda al tritono. Un Mi basso da solo, suonato brillante, "conteneva" un La♯ a
+ * 0,296 che nessuno aveva suonato. Arrivando fino al bordo della banda il fantasma
+ * sparisce, e non si rischia di cancellare note vere: le armoniche 11ª e 13ª cadono
+ * 50 e 40 centesimi lontano da qualunque nota del temperamento equabile, quindi ben
+ * fuori dalla tolleranza di 25.
  */
 function armonicoDi(lista, i) {
   const p = lista[i];

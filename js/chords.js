@@ -20,6 +20,32 @@ export const CORDE = ['E', 'A', 'D', 'G', 'B', 'E'];
 /** Come si chiamano per numero: la 6ª è il Mi basso, la 1ª è il cantino. */
 export const NUMERI_CORDA = ['6ª', '5ª', '4ª', '3ª', '2ª', '1ª'];
 
+/**
+ * Quanto è grossa ogni corda, in pixel da disegnare.
+ *
+ * Le proporzioni sono quelle vere di una muta leggera: .053 .042 .032 .024 .016 .012
+ * di pollice, cioè la 6ª è quattro volte e mezzo la 1ª. Serve a rispondere senza parole
+ * alla domanda che il numero da solo non risolve — *quale* corda pizzico — perché sulla
+ * chitarra la risposta si vede a occhio: la più grossa è la 6ª e sta in alto.
+ */
+export const SPESSORE_CORDA = [5, 4, 3.2, 2.4, 1.7, 1.2];
+
+/**
+ * Dov'è fisicamente ogni corda, detto a parole.
+ *
+ * "6ª" è un numero, e a chi comincia non dice niente: bisogna sapere che si contano
+ * dal basso verso l'alto, cioè al contrario di come si leggono i diagrammi. Questa
+ * riga toglie di mezzo il problema invece di darlo per scontato.
+ */
+export const DOVE_CORDA = [
+  'la più grossa, quella più in alto quando tieni la chitarra',
+  'la seconda dall\'alto',
+  'la terza dall\'alto',
+  'la terza dal basso',
+  'la seconda dal basso',
+  'la più sottile, quella più in basso',
+];
+
 /** Semitoni delle corde a vuoto rispetto a Do, per la verifica delle note. */
 export const CORDE_SEMITONI = [4, 9, 2, 7, 11, 4];
 

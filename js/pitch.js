@@ -16,6 +16,20 @@ const HZ_MIN = 70;      // sotto: rumore di stanza / bassi
 const HZ_MAX = 1300;    // sopra: armonici, fischi
 const ARMONICI_HPS = 4;
 
+// Soglie di livello. I due estremi non sono gusti: sotto il minimo assoluto c'è il
+// rumore elettrico del convertitore anche a stanza muta, sopra il massimo una soglia
+// così alta renderebbe l'accordatore sordo invece che prudente.
+const RMS_MINIMO = 0.006;       // ≈ −44 dBFS
+const RMS_MASSIMO = 0.05;       // ≈ −26 dBFS
+const SOPRA_IL_RUMORE = 3.2;    // ≈ +10 dB sopra il fondo misurato
+const LIVELLO_DB_MIN = -60;     // fondo scala della barra
+const LIVELLO_DB_MAX = -12;     // oltre: forte, e vicino a saturare
+// Finestra su cui si cerca il rumore di fondo: 20 blocchi da 10 letture. Il ciclo
+// dell'accordatore gira ogni 25 ms, quindi sono 5 secondi — più lunghi di una pennata,
+// che è il requisito che conta.
+const LETTURE_PER_BLOCCO = 10;
+const BLOCCHI = 20;
+
 export class Rilevatore {
   constructor(analyser) {
     this.analyser = analyser;
@@ -23,11 +37,91 @@ export class Rilevatore {
     this.tempo = new Float32Array(analyser.fftSize);
     this.spettro = new Float32Array(analyser.frequencyBinCount);
     this.storico = [];
-    this.sogliaRms = 0.006;
+    this.sogliaRms = RMS_MINIMO;
     this.sogliaChiarezza = 0.55;
+    // Stima del rumore della stanza. Parte da "non lo so ancora": finché non lo sa, si
+    // comporta esattamente come prima.
+    this.pavimento = null;
+    this._blocchi = [];
+    this._minBlocco = Infinity;
+    this._nelBlocco = 0;
   }
 
-  /** @returns {{hz:number|null, chiarezza:number, rms:number, silenzio:boolean}} */
+  /**
+   * La soglia sotto la quale si dichiara silenzio, ADATTATA alla stanza.
+   *
+   * Prima era un numero fisso, 0,006 di RMS — circa −44 dBFS — e il numero fisso era il
+   * difetto, non il valore. Sbagliava in tutte e due le direzioni:
+   *
+   *   in una stanza silenziosa, con una pennata leggera o il telefono lontano, il segnale
+   *     non arrivava a 0,006 e l'app diceva "silenzio" a chi stava suonando davvero;
+   *   in una stanza con una ventola o il traffico, il RUMORE arrivava a 0,006 e l'app
+   *     provava a misurare l'altezza del nulla.
+   *
+   * Adesso la soglia sta un fattore fisso SOPRA il rumore misurato. Due limiti la
+   * tengono onesta: non scende mai sotto il minimo assoluto (in una stanza perfettamente
+   * silenziosa il pavimento tende a zero, e una soglia a zero accetterebbe qualunque
+   * fruscio), e non sale mai sopra il massimo (una stanza molto rumorosa renderebbe
+   * l'accordatore sordo invece che prudente — meglio provarci e sbagliare in modo
+   * visibile che tacere).
+   */
+  soglia() {
+    if (this.pavimento === null) return RMS_MINIMO;
+    return Math.min(RMS_MASSIMO, Math.max(RMS_MINIMO, this.pavimento * SOPRA_IL_RUMORE));
+  }
+
+  /**
+   * Aggiorna la stima del rumore di fondo. Si chiama SOLO sui fotogrammi in cui non è
+   * stata riconosciuta nessuna nota, e quella condizione è la cosa importante di tutta
+   * questa storia — più della formula qui dentro.
+   *
+   * Il primo tentativo aggiornava il pavimento a ogni lettura, e sembrava ragionevole.
+   * Non lo è: una corda pizzicata si spegne piano, per secondi, e un pavimento nutrito
+   * anche mentre la corda suona finisce per inseguire la corda. La soglia sta un fattore
+   * sopra il pavimento, quindi finisce sopra il segnale, e l'app dichiara silenzio su una
+   * nota che si sente ancora benissimo. Misurato sullo stesso decadimento: dichiarata
+   * muta in 123 letture su 160 aggiornando sempre, contro 68 aggiornando solo quando non
+   * c'è nota — e quelle 68 sono esattamente le letture in cui il segnale era sceso sotto
+   * il minimo assoluto, cioè lo stesso identico comportamento della soglia fissa di
+   * prima. Un pavimento del rumore va misurato sul rumore, non sul suono.
+   *
+   * Dentro quel vincolo, la formula è il MINIMO su una finestra invece del minimo
+   * istantaneo: così un singolo fotogramma tranquillo in mezzo al rumore non abbassa la
+   * stima, e un ronzio che dura più della finestra la alza — come deve, perché quello è
+   * davvero il rumore della stanza.
+   *
+   * La finestra si conta in LETTURE, non in secondi, e non è una scorciatoia: il ciclo
+   * dell'accordatore gira a cadenza fissa (25 ms), quindi contare le letture è contare
+   * il tempo, e per giunta rende la cosa riproducibile sul banco di collaudo, dove non
+   * c'è nessun orologio da aspettare.
+   */
+  _aggiornaPavimento(rms) {
+    this._minBlocco = Math.min(this._minBlocco, rms);
+    this._nelBlocco += 1;
+    if (this._nelBlocco >= LETTURE_PER_BLOCCO) {
+      this._blocchi.push(this._minBlocco);
+      if (this._blocchi.length > BLOCCHI) this._blocchi.shift();
+      this._minBlocco = Infinity;
+      this._nelBlocco = 0;
+    }
+    // Finché non c'è nemmeno un blocco chiuso non si inventa una stima: `soglia()`
+    // restituisce il minimo assoluto, cioè esattamente il comportamento di prima.
+    this.pavimento = this._blocchi.length ? Math.min(...this._blocchi) : null;
+  }
+
+  /**
+   * Quanto forte sta arrivando il segnale, da 0 a 1, per la barra del livello.
+   *
+   * Serve a rispondere alla domanda che l'app non permetteva di farsi: "non mi sente
+   * perché suono piano, o perché non capisce quello che suono?" Sono due problemi con
+   * due rimedi opposti, e senza questo numero erano indistinguibili.
+   */
+  livello(rms) {
+    const dB = 20 * Math.log10(Math.max(rms, 1e-7));
+    return Math.max(0, Math.min(1, (dB - LIVELLO_DB_MIN) / (LIVELLO_DB_MAX - LIVELLO_DB_MIN)));
+  }
+
+  /** @returns {{hz:number|null, chiarezza:number, rms:number, livello:number, soglia:number, silenzio:boolean}} */
   leggi() {
     const { analyser, tempo, spettro } = this;
     analyser.getFloatTimeDomainData(tempo);
@@ -42,22 +136,28 @@ export class Rilevatore {
       somma += v * v;
     }
     const rms = Math.sqrt(somma / tempo.length);
-    if (rms < this.sogliaRms) {
+    const soglia = this.soglia();
+    const livello = this.livello(rms);
+    // Il pavimento si aggiorna solo dove NON c'è una nota: ogni `return` senza `hz` passa
+    // di qui, quello con `hz` no. Vedi `_aggiornaPavimento` per il motivo.
+    const senzaNota = (esito) => { this._aggiornaPavimento(rms); return esito; };
+
+    if (rms < soglia) {
       this.storico.length = 0;
-      return { hz: null, chiarezza: 0, rms, silenzio: true };
+      return senzaNota({ hz: null, chiarezza: 0, rms, livello, soglia, silenzio: true });
     }
 
     analyser.getFloatFrequencyData(spettro);
     const grezzo = this._hps(spettro);
-    if (!grezzo) return { hz: null, chiarezza: 0, rms, silenzio: false };
+    if (!grezzo) return senzaNota({ hz: null, chiarezza: 0, rms, livello, soglia, silenzio: false });
 
     const fine = this._autocorrelazione(grezzo);
     if (!fine || fine.chiarezza < this.sogliaChiarezza) {
-      return { hz: null, chiarezza: fine ? fine.chiarezza : 0, rms, silenzio: false };
+      return senzaNota({ hz: null, chiarezza: fine ? fine.chiarezza : 0, rms, livello, soglia, silenzio: false });
     }
 
     const stabile = this._stabilizza(fine.hz);
-    return { hz: stabile, chiarezza: fine.chiarezza, rms, silenzio: false };
+    return { hz: stabile, chiarezza: fine.chiarezza, rms, livello, soglia, silenzio: false };
   }
 
   /**

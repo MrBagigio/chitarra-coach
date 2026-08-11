@@ -698,7 +698,23 @@ select.campo { appearance: none; background-image: none; }
 }
 .tn-modo.manuale { color: var(--ambra); border-color: var(--ambra); border-style: solid; }
 
-.tn-corde { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+/* Le sei corde stanno su UNA riga sola, nello stesso ordine dei diagrammi degli accordi:
+   la 6ª a sinistra, la 1ª a destra. Prima erano una griglia da quattro colonne, quindi
+   andavano a capo come "6 5 4 3 / 2 1" — una disposizione che non assomiglia a niente,
+   e soprattutto contraddiceva i diagrammi della stessa app. Due linguaggi diversi per le
+   stesse sei corde: chi accordava non riusciva a capire quale pizzicare. */
+.tn-corde { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 10px; }
+
+/* Il filo grosso quanto la corda vera (proporzioni di una muta leggera). Il numero di
+   corda va imparato; lo spessore si riconosce guardando lo strumento. */
+.tn-filo {
+  width: 76%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--testo) 55%, transparent);
+  margin-bottom: 5px;
+}
+.tn-corda.scelta .tn-filo { background: var(--ambra); }
+.tn-corda.ok .tn-filo { background: var(--verde); }
 .tn-corda {
   border-radius: 12px;
   border: 1px solid var(--linea);
@@ -710,7 +726,8 @@ select.campo { appearance: none; background-image: none; }
 }
 .tn-corda-scegli {
   flex: 1;
-  min-height: 68px;
+  min-height: 62px;
+  padding: 6px 2px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -1134,3 +1151,39 @@ h2.ok { animation: battito .34s ease-out; }
   line-height: 1;
   margin-bottom: 2px;
 }
+
+/* Barra del livello del microfono — portata dall'ukulele insieme alla soglia
+   adattiva: senza, la tacca della soglia non avrebbe dove stare. */
+.tn-livello { margin-top: 12px; transition: opacity .2s; }
+.tn-livello.spento { opacity: .35; }
+.tn-livello-pista {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dim) 26%, transparent);
+  overflow: hidden;
+}
+.tn-livello-barra {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 999px;
+  background: var(--verde);
+  transition: width .08s linear, background-color .2s;
+}
+/* La tacca della soglia: è il confine fra "l'app sta misurando" e "l'app tace".
+   Si muove con la stanza, perché la soglia si adatta al rumore. */
+.tn-livello-soglia {
+  position: absolute; top: -3px; bottom: -3px;
+  width: 2px;
+  background: var(--testo);
+  opacity: .55;
+  transition: left .3s;
+}
+.tn-livello-testo {.tn-livello-testo {
+  color: var(--dim);
+  font-size: 0.78rem;
+  margin-top: 6px;
+  min-height: 1.1em;
+}
+.tn-livello.scarso .tn-livello-barra { background: var(--dim); }
+.tn-livello.forte .tn-livello-barra { background: var(--ambra); }

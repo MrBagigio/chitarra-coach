@@ -15,7 +15,7 @@
 import { aggiungi, h, scheda, titoloPagina, bottone } from '../ui.js';
 import * as store from '../store.js';
 import { ACCORDATURE, accordatura } from '../tunings.js';
-import { NUMERI_CORDA } from '../chords.js';
+import { NUMERI_CORDA, SPESSORE_CORDA, DOVE_CORDA } from '../chords.js';
 import {
   Rilevatore, hzDaMidi, nota, centesimi, decisioneDisplay, spuntaDaTogliere, msDentroFinestra,
 } from '../pitch.js';
@@ -30,7 +30,7 @@ const TOLLERANZA = 5;         // centesimi per dichiarare accordata una corda
 const TOLLERANZA_USCITA = 12; // e per toglierle la spunta: isteresi, o lampeggia
 const STABILE_MS = 450;       // quanto tempo dentro tolleranza serve, SOMMATO
 const FINESTRA_MS = 1600;     // in quale finestra si somma
-const ISTRUZIONI_CORDE = 'Tocca il riquadro per accordare solo quella corda, il tastino ♪ per sentire com\'è quando è giusta.';
+const ISTRUZIONI_CORDE = 'Sono disposte come le vedi guardando la chitarra: la 6ª più grossa a sinistra, la 1ª più sottile a destra. Tocca un riquadro per accordare solo quella corda, il tastino ♪ per sentire com\'è quando è giusta.';
 const AGGANCIO_CENT = 400;    // oltre questo scarto la corda non è "quella"
 const TENUTA_MS = 4000;       // per quanto resta a schermo l'ultima lettura buona
 
@@ -92,11 +92,23 @@ export function monta(radice, ctx) {
       ...[-50, -25, 0, 25, 50].map((v) => h('span', { class: v === 0 ? 'centro' : '', testo: v === 0 ? '' : String(v) }))),
     lancetta);
 
+  // Barra del livello. Risponde alla domanda che prima non si poteva nemmeno fare:
+  // "non mi sente perché suono troppo piano, o perché non capisce quello che suono?"
+  // Sono due problemi con due rimedi opposti — avvicinare il telefono, oppure lasciar
+  // smettere la corda di ronzare — e senza questa barra erano indistinguibili.
+  // La tacca segna dove sta la soglia del silenzio in QUESTA stanza: quando la barra la
+  // supera, l'app sta misurando; quando resta sotto, sta zitta per un motivo onesto.
+  const livelloBarra = h('div', { class: 'tn-livello-barra' });
+  const livelloSoglia = h('div', { class: 'tn-livello-soglia' });
+  const livelloTesto = h('div', { class: 'tn-livello-testo', testo: 'microfono spento' });
+  const livello = h('div', { class: 'tn-livello spento' },
+    h('div', { class: 'tn-livello-pista' }, livelloBarra, livelloSoglia), livelloTesto);
+
   // Niente più freccine "allenta / tendi" sotto il quadrante: dicevano la stessa cosa
   // della parola grossa, ma su lati opposti (la lancetta va a sinistra, l'istruzione
   // stava a destra) e in mezzo secondo di occhiata sembravano contraddirsi.
   const misuratore = h('div', { class: 'tn-misuratore' },
-    notaGrande, notaIt, quadrante, azione, h('div', { class: 'tn-riga' }, hzTesto, centTesto));
+    notaGrande, notaIt, quadrante, azione, h('div', { class: 'tn-riga' }, hzTesto, centTesto), livello);
 
   const modo = h('p', { class: 'tn-modo' });
   const corde = h('div', { class: 'tn-corde' });
@@ -163,8 +175,11 @@ export function monta(radice, ctx) {
           // "E" sono DUE, la 6ª e la 1ª, a due ottave di distanza. Distinguerle per la
           // sola frequenza scritta piccola sotto è chiedere a chi impara di fare un
           // conto che il programma può fare per lui.
+          // Il filo disegnato grosso quanto la corda vera. È la parte che risponde
+          // davvero alla domanda "quale pizzico": il numero va imparato, lo spessore
+          // si riconosce guardando lo strumento, senza sapere niente.
+          h('span', { class: 'tn-filo', style: `height:${SPESSORE_CORDA[i]}px` }),
           h('strong', {}, h('span', { class: 'tn-numero', testo: NUMERI_CORDA[i] }), c.etichetta),
-          h('small', { testo: `${c.hz.toFixed(1)} Hz` }),
           h('span', { class: 'tn-spunta', testo: fatte.has(i) ? '✓' : (maiFatte.has(i) ? '·' : '') })),
         h('button', {
           class: 'tn-corda-suona',
@@ -184,10 +199,19 @@ export function monta(radice, ctx) {
     }));
   }
 
+  /**
+   * Quando fissi una corda, la cosa da dire non è come si chiama: è DOVE STA.
+   *
+   * "Sto ascoltando solo la corda E" non serviva: di corde chiamate E ce ne sono due, e
+   * comunque il nome non dice quale pizzicare. Nemmeno il numero basta da solo, perché
+   * le corde si contano dal basso verso l'alto — al contrario di come si leggono i
+   * diagrammi. Quindi si dice a parole: la più grossa, la seconda dall'alto, la più
+   * sottile.
+   */
   function aggiornaModo() {
     const nome = cordaScelta === null ? null : bersagli()[cordaScelta].etichetta;
     modo.textContent = nome
-      ? `Sto ascoltando SOLO la corda ${nome} — tocca di nuovo il suo riquadro per tornare in automatico`
+      ? `Pizzica la ${NUMERI_CORDA[cordaScelta]} corda — ${DOVE_CORDA[cordaScelta]}. Sto ascoltando solo lei; tocca di nuovo il riquadro per tornare in automatico.`
       : 'Riconoscimento automatico: capisce da sé quale corda hai pizzicato. Tocca un riquadro per fissarne una.';
     modo.className = `tn-modo${nome ? ' manuale' : ''}`;
   }
@@ -261,6 +285,7 @@ export function monta(radice, ctx) {
     }
 
     const lettura = rilevatore.leggi();
+    mostraLivello(lettura);
 
     if (!lettura.hz) {
       // La decisione sta in `pitch.js`, sotto collaudo: è il punto in cui l'accordatore
@@ -350,6 +375,30 @@ export function monta(radice, ctx) {
         aggiornaEsito();
       }
     }
+  }
+
+  /**
+   * La barra del livello, aggiornata a OGNI giro — anche, anzi soprattutto, quando non
+   * c'è nessuna nota da mostrare. È lì che serve: quando l'app tace.
+   *
+   * Il testo dice una cosa sola e concreta, quella che si può fare adesso. "Troppo
+   * piano" con la barra sotto la tacca vuol dire avvicina il telefono o pizzica più
+   * deciso; se invece la barra supera la tacca e la nota non compare, il problema non è
+   * il volume ed è giusto che l'app lo dica.
+   */
+  function mostraLivello(lettura) {
+    livello.classList.remove('spento');
+    const q = Math.round(lettura.livello * 100);
+    livelloBarra.style.width = `${q}%`;
+    // Dove cade la soglia sulla stessa scala della barra: così la tacca e la barra
+    // parlano della stessa grandezza invece di essere due disegni scollegati.
+    livelloSoglia.style.left = `${Math.round(rilevatore.livello(lettura.soglia) * 100)}%`;
+    const passa = lettura.rms >= lettura.soglia;
+    livello.classList.toggle('scarso', !passa);
+    livello.classList.toggle('forte', q >= 92);
+    if (!passa) livelloTesto.textContent = 'troppo piano — avvicina il telefono o pizzica più deciso';
+    else if (q >= 92) livelloTesto.textContent = 'fortissimo — allontana un po\' il telefono';
+    else livelloTesto.textContent = 'ti sento';
   }
 
   function azzeraMisura(messaggio) {
