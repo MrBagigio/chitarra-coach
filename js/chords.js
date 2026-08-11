@@ -13,7 +13,7 @@
 // Ogni diteggiatura è verificata contro le note dell'accordo dal collaudo: il diagramma
 // di un accordo sbagliato si impara in silenzio e non si disimpara più.
 
-import { classiAttese, nomeClasse, scomponi } from './theory.js';
+import { classiAttese, nomeClasse, nomeItaliano, scomponi } from './theory.js';
 
 export const CORDE = ['E', 'A', 'D', 'G', 'B', 'E'];
 
@@ -190,6 +190,49 @@ export const ACCORDI = [
 ];
 
 /**
+ * Le triadi diminuite, tutte e dodici, da UNA forma sola.
+ *
+ * Non sono scritte a mano una per una perché sono letteralmente la stessa presa spostata:
+ * fondamentale sulla 5ª corda, e sopra il disegno n · n+1 · n+2 · n+1 sulle quattro corde
+ * di mezzo. Scriverne dodici copie sarebbe stato dodici volte il rischio di sbagliarne una,
+ * per zero informazione in più — e il collaudo le verifica comunque una per una, come
+ * tutte le altre.
+ *
+ * Servono per un motivo preciso: sono il SETTIMO grado di ogni tonalità. Il costruttore di
+ * giri mostra "i sette accordi della tonalità" e finora l'ultimo era spento in tutte e
+ * dodici, perché in libreria c'erano solo le settime diminuite (Do dim7) e non le triadi
+ * (Do dim), che sono un altro accordo. Un elenco che promette sette e ne dà sei.
+ */
+const DIMINUITE = Array.from({ length: 12 }, (_, n) => {
+  const pc = (CORDE_SEMITONI[1] + n) % 12;      // fondamentale sulla 5ª corda al tasto n
+  const nome = `${nomeClasse(pc)}dim`;
+  const esteso = `${nomeItaliano(nomeClasse(pc))} diminuito`;
+  const extra = {
+    difficolta: 3,
+    famiglia: 'diminuita',
+    posizione: 'mobile',
+    suggerimento: 'Una forma sola che vale per tutte e dodici: spostandola di un tasto cambia nome. Si usa di passaggio, quasi mai come destinazione.',
+  };
+
+  // La forma normale, fondamentale sulla 5ª corda.
+  if (n + 2 <= 12) {
+    return A(nome, esteso, [-1, n, n + 1, n + 2, n + 1, -1],
+      // Con la fondamentale a vuoto l'indice è libero e la mano si chiude più naturale.
+      n === 0 ? [0, 0, 1, 3, 2, 0] : [0, 1, 2, 4, 3, 0], extra);
+  }
+
+  // Sol♯ è l'unico che sulla 5ª corda finirebbe al 13° tasto, cioè fuori dal manico che
+  // l'app disegna. Lo si prende con la fondamentale sulla 6ª: stesse tre note, un'altra
+  // presa. Il caso non l'ho previsto scrivendolo — l'ha trovato il collaudo, che controlla
+  // che nessun accordo chieda tasti che non esistono.
+  const m = ((pc - CORDE_SEMITONI[0]) % 12 + 12) % 12;
+  return A(nome, esteso, [m, m + 1, m + 2, m, -1, -1], [1, 2, 3, 1, 0, 0],
+    { ...extra, barre: { tasto: m, da: 0, a: 3 } });
+});
+
+ACCORDI.push(...DIMINUITE);
+
+/**
  * Verifica che una diteggiatura suoni davvero l'accordo che dichiara.
  *
  * È la rete che impedisce di pubblicare un diagramma sbagliato: un accordo errato si
@@ -247,9 +290,26 @@ export function qualitaDi(acc) {
 
 export const PER_ID = new Map(ACCORDI.map((a) => [a.id, a]));
 
-/** Accordo per id, con fallback sul nome senza suffisso "-facile". */
+/**
+ * Accordo per id, con due riserve: il suffisso "-facile" e la SCRITTURA ENARMONICA.
+ *
+ * La seconda ha morso davvero. Il costruttore di giri chiede i sette gradi della tonalità
+ * e li scrive con i diesis, perché è quello che fa `accordiDellaTonalita`: in Fa maggiore
+ * il quarto grado esce come "A#". In libreria quell'accordo però si chiama "Bb", che è il
+ * nome giusto in quella tonalità. Risultato: nelle tonalità con i bemolli — Fa, Sib, Mib,
+ * Lab, Reb — due o tre gradi risultavano SPENTI, e non c'era modo di metterli nel giro.
+ *
+ * Sib e La♯ sono la stessa altezza scritta in due modi, quindi cercare l'altra scrittura
+ * non è indovinare: è leggere lo stesso accordo con l'altro alfabeto.
+ */
 export function accordo(id) {
-  return PER_ID.get(id) || PER_ID.get(String(id).replace(/-facile$/, '')) || null;
+  const diretto = PER_ID.get(id) || PER_ID.get(String(id).replace(/-facile$/, ''));
+  if (diretto) return diretto;
+  const s = scomponi(id);
+  if (!s) return null;
+  return PER_ID.get(nomeClasse(s.fondamentale, true) + s.qualita)
+    || PER_ID.get(nomeClasse(s.fondamentale, false) + s.qualita)
+    || null;
 }
 
 /**

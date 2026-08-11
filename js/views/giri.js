@@ -6,9 +6,9 @@
 
 import { aggiungi, h, scheda, titoloPagina, indietro, bottone } from '../ui.js';
 import * as store from '../store.js';
-import { accordo, etichettaAccordo } from '../chords.js';
+import { ACCORDI, accordo, etichettaAccordo, nomeCanonico } from '../chords.js';
 import { diagramma } from '../diagram.js';
-import { NOMI, nomeClasse, accordiDellaTonalita } from '../theory.js';
+import { NOMI, nomeClasse, accordiDellaTonalita, trasponi } from '../theory.js';
 import { salvaBrano } from '../importa.js';
 import { sblocca, suonaPennata } from '../audio.js';
 import { accordatura } from '../tunings.js';
@@ -31,7 +31,14 @@ export function monta(radice, ctx) {
   const tun = accordatura(d.accordatura);
 
   let tonica = 0;
-  let sequenza = [];          // indici di grado (0..6)
+  // La sequenza tiene i NOMI degli accordi, non gli indici dei gradi.
+  //
+  // Prima teneva gli indici, e quella scelta aveva una conseguenza che non si vedeva
+  // guardando il codice: dentro un giro poteva finire SOLO uno dei sette gradi della
+  // tonalità. Niente settime di passaggio, niente prestiti dal minore, niente
+  // dominanti secondarie — e neanche un accordo qualsiasi che ti va di provare.
+  // Con i nomi, i gradi restano la scorciatoia comoda e tutto il resto diventa possibile.
+  let sequenza = [];
   let bpm = 76;
   let battiti = 4;
   let ottavaAlta = false;
@@ -44,8 +51,38 @@ export function monta(radice, ctx) {
 
   const selTonica = h('select', {
     class: 'campo', 'aria-label': 'Tonalità',
-    onchange: (e) => { tonica = Number(e.target.value); disegna(); },
+    onchange: (e) => {
+      // Cambiando tonalità la sequenza si TRASPORTA. Con gli indici di grado avveniva
+      // da sé; con i nomi va fatto, ed è meglio così: adesso si trasporta anche un
+      // accordo che nella tonalità non c'entra niente, invece di sparire.
+      const nuova = Number(e.target.value);
+      const salto = ((nuova - tonica) % 12 + 12) % 12;
+      if (salto) sequenza = sequenza.map((n) => trasponi(n, salto));
+      tonica = nuova;
+      disegna();
+    },
   }, ...NOMI.map((n, i) => h('option', { value: i, selected: i === tonica, testo: `Tonalità di ${n}` })));
+
+/**
+ * Il ripescaggio: qualunque accordo della libreria, non solo i sette della tonalità.
+ *
+ * Sta sotto i gradi e non al loro posto, perché i sette gradi restano la strada giusta
+ * per il 90% dei giri: è da lì che si impara che un giro è fatto di numeri. Questo serve
+ * per il restante 10%, che però è quello che rende una canzone riconoscibile.
+ */
+  const selQualsiasi = h('select', {
+    class: 'campo', 'aria-label': 'Aggiungi un accordo qualsiasi',
+    onchange: (e) => {
+      if (!e.target.value) return;
+      sequenza.push(e.target.value);
+      e.target.value = '';
+      disegna();
+    },
+  },
+    h('option', { value: '', testo: 'Aggiungi un accordo qualsiasi…' }),
+    ...ACCORDI.filter((a) => !a.posizione && !a.alias).map((a) => h('option', {
+      value: nomeCanonico(a), testo: `${etichettaAccordo(a)} — ${a.esteso}`,
+    })));
 
   const selBattiti = h('select', {
     class: 'campo', 'aria-label': 'Metro',
@@ -75,7 +112,8 @@ export function monta(radice, ctx) {
       selTonica,
       h('p', { class: 'occhiello', testo: 'I sette accordi della tonalità' }),
       gradiBox,
-      nota),
+      nota,
+      selQualsiasi),
 
     scheda(
       h('p', { class: 'occhiello', testo: 'Giri già pronti' }),
@@ -108,32 +146,32 @@ export function monta(radice, ctx) {
       class: `grado bottone-grado${g.acc ? '' : ' assente'}`,
       type: 'button',
       disabled: !g.acc,
-      onclick: () => { sequenza.push(i); disegna(); },
+      onclick: () => { sequenza.push(g.nome); disegna(); },
     }, h('small', { testo: g.grado }), h('strong', { testo: g.nome }))));
 
     const senza = lista.filter((g) => !g.acc).map((g) => g.nome);
     nota.textContent = senza.length
-      ? `Di ${senza.join(', ')} non ho il diagramma: è il grado diminuito, che nella musica popolare non si usa quasi mai.`
-      : 'Tocca un accordo per aggiungerlo al giro. I quattro più usati sono I, IV, V e vi.';
+      ? `Di ${senza.join(', ')} non ho il diagramma.`
+      : 'Tocca un accordo per aggiungerlo al giro. I quattro più usati sono I, IV, V e vi — e se te ne serve uno che qui non c\'è, prendilo dall\'elenco qui sotto.';
 
     modelliBox.replaceChildren(...MODELLI.map((m) => h('button', {
       class: 'chip', type: 'button', title: m.testo,
-      onclick: () => { sequenza = [...m.gradi]; disegna(); },
+      onclick: () => { sequenza = m.gradi.map((i) => lista[i].nome); disegna(); },
     }, m.nome)));
 
     sequenzaBox.replaceChildren(...(sequenza.length
-      ? sequenza.map((g, i) => h('div', {
+      ? sequenza.map((n, i) => h('div', {
         class: 'bat cliccabile',
         title: 'togli questa battuta',
         onclick: () => { sequenza.splice(i, 1); disegna(); },
-      }, h('small', { testo: String(i + 1) }), h('strong', { testo: lista[g].nome })))
+      }, h('small', { testo: String(i + 1) }), h('strong', { testo: n })))
       : [h('p', { class: 'dim piccolo', testo: 'Vuoto: tocca i gradi qui sopra o scegli un giro pronto.' })]));
 
-    const usati = [...new Set(sequenza)].map((g) => lista[g]).filter((g) => g.acc);
-    diagrammiBox.replaceChildren(...usati.map((g) => {
-      const forma = ottavaAlta ? posizioneAlta(g.acc) : g.acc;
+    const usati = [...new Set(sequenza)].map((n) => accordo(n)).filter(Boolean);
+    diagrammiBox.replaceChildren(...usati.map((acc) => {
+      const forma = ottavaAlta ? posizioneAlta(acc) : acc;
       return h('div', { class: 'mini' },
-        h('strong', { testo: etichettaAccordo(g.acc) }),
+        h('strong', { testo: etichettaAccordo(acc) }),
         diagramma(forma, { dita: true, tasti: 5 }),
         h('small', { class: 'dim', testo: ottavaAlta ? 'più in alto' : 'aperto' }));
     }));
@@ -152,16 +190,14 @@ export function monta(radice, ctx) {
   }
 
   function battute() {
-    const lista = accordiTonalita();
-    return sequenza.map((g) => lista[g].nome);
+    return [...sequenza];
   }
 
   function anteprima() {
     sblocca();
-    const lista = accordiTonalita();
     const passi = sequenza.slice(0, 8);
-    passi.forEach((g, i) => {
-      const acc = lista[g].acc;
+    passi.forEach((n, i) => {
+      const acc = accordo(n);
       if (!acc) return;
       const forma = ottavaAlta ? posizioneAlta(acc) : acc;
       setTimeout(() => {
@@ -173,13 +209,12 @@ export function monta(radice, ctx) {
 
   function suona(aTuoTempo = false) {
     if (sequenza.length < 2) return;
-    const lista = accordiTonalita();
     const brano = salvaBrano({
       titolo: `Giro in ${nomeClasse(tonica)}${ottavaAlta ? ' (in alto)' : ''}`,
       battute: battute(),
       battiti,
       bpm,
-      testo: sequenza.map((g) => lista[g].grado).join(' '),
+      testo: sequenza.join(' '),
     });
     ctx.vaiA(aTuoTempo ? `#/libero?b=${brano.id}` : `#/esercizio/giro?b=${brano.id}&bpm=${bpm}`);
   }
