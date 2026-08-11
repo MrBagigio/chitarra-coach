@@ -57,7 +57,7 @@ export function monta(radice, ctx) {
       // accordo che nella tonalità non c'entra niente, invece di sparire.
       const nuova = Number(e.target.value);
       const salto = ((nuova - tonica) % 12 + 12) % 12;
-      if (salto) sequenza = sequenza.map((n) => trasponi(n, salto));
+      if (salto) sequenza = sequenza.map((n) => trasponi(n, salto, BEMOLLI.has(nuova)));
       tonica = nuova;
       disegna();
     },
@@ -135,8 +135,22 @@ export function monta(radice, ctx) {
       bottone('Suonalo a tuo tempo (senza metronomo)', () => suona(true), { classe: 'sottile' })),
   );
 
+  /**
+   * Le tonalità coi bemolli si scrivono coi bemolli.
+   *
+   * In Fa maggiore il quarto grado è un SIb, non un LA#: sono la stessa altezza, ma chi
+   * legge uno spartito cerca quella lettera lì. L'app lo dichiara già altrove — è la
+   * regola con cui vengono scritte le note di ogni accordo — e qui la contraddiceva,
+   * mostrando "A#" nel giro appena costruito.
+   *
+   * Quali tonalità: quelle che nel circolo delle quinte stanno dalla parte dei bemolli,
+   * cioè Fa, Sib, Mib, Lab, Reb. Le altre restano coi diesis.
+   */
+  const BEMOLLI = new Set([5, 10, 3, 8, 1]);      // Fa · Sib · Mib · Lab · Reb
+
   function accordiTonalita() {
-    return accordiDellaTonalita(tonica).map((g) => ({ ...g, acc: accordo(g.nome) }));
+    return accordiDellaTonalita(tonica, BEMOLLI.has(tonica))
+      .map((g) => ({ ...g, acc: accordo(g.nome) }));
   }
 
   function disegna() {
