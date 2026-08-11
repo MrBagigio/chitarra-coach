@@ -283,32 +283,46 @@ export function primaCordaSuonata(acc) {
   return i < 0 ? 0 : i;
 }
 
+/** Le corde che il pollice può prendersi: la 6ª, la 5ª e la 4ª. Le altre sono di i, m, a. */
+export const ULTIMA_CORDA_DEL_POLLICE = 2;
+
 /**
  * Le due corde su cui cammina il pollice: `p` il basso, `P` il basso alternato.
  *
- * Il basso è la corda più grave che suona. L'alternato NON è "quella dopo": è la corda
- * più grave, fra quelle sopra, che suona la QUINTA dell'accordo. È la scelta che fanno
- * tutti da sempre e ha un motivo che si sente — fondamentale e quinta sono le due note
- * che reggono l'accordo senza dirne il colore, quindi il basso può andare avanti e
- * indietro senza mai contraddire quello che fanno le altre dita sopra.
+ * Il basso è la corda più grave che suona. L'alternato si cerca in questo ordine:
  *
- * Su un Mi dà 6ª e 5ª, su un La 5ª e 4ª, su un Re 4ª e 3ª: esattamente quello che si
- * legge in qualunque metodo. Non è stato scritto a mano — cade fuori da solo.
+ *   1. la QUINTA dell'accordo, fra le corde del basso (6ª, 5ª, 4ª). Fondamentale e
+ *      quinta sono le due note che reggono l'accordo senza dirne il colore: il pollice
+ *      può andare avanti e indietro senza mai contraddire quello che fanno le dita sopra.
+ *   2. se lì la quinta non c'è, la prima corda del basso che suona. Sul Do la quinta
+ *      (Sol) sta sulla 3ª, e la 3ª è dell'INDICE: mandarci il pollice significa mettere
+ *      due dita sulla stessa corda nello stesso momento. Si ripiega sulla 4ª, che è poi
+ *      esattamente l'alternanza 5ª–4ª che si legge in qualunque metodo.
+ *   3. solo per gli accordi che di corde gravi ne hanno una sola — il Re, il Re minore —
+ *      si esce dalla zona del pollice e si va sulla 3ª. Lì è giusto: la 5ª e la 6ª non
+ *      suonano proprio, e l'alternanza 4ª–3ª è quella che fanno tutti.
+ *
+ * Il caso del Do non è teorico: è saltato fuori guardando la schermata dell'arpeggio,
+ * dove il pollice e l'indice si ritrovavano tutti e due sulla 3ª corda.
  */
 export function bassiDi(acc) {
   const p = primaCordaSuonata(acc);
   const s = scomponi(nomeCanonico(acc));
   const quinta = s ? (s.fondamentale + 7) % 12 : null;
-  let alternato = -1;
-  if (quinta !== null) {
-    for (let i = p + 1; i < acc.tasti.length; i += 1) {
-      if (acc.tasti[i] >= 0 && (CORDE_SEMITONI[i] + acc.tasti[i]) % 12 === quinta) { alternato = i; break; }
-    }
-  }
-  // Riserva: la corda suonante subito sopra. Serve per gli accordi senza quinta (le
-  // settime che la omettono) — lì il basso alternato è una convenzione, non una regola.
-  if (alternato < 0) {
-    for (let i = p + 1; i < acc.tasti.length; i += 1) if (acc.tasti[i] >= 0) { alternato = i; break; }
-  }
-  return { p, P: alternato < 0 ? p : alternato };
+  const suona = (i) => acc.tasti[i] >= 0;
+  const eQuinta = (i) => quinta !== null && (CORDE_SEMITONI[i] + acc.tasti[i]) % 12 === quinta;
+
+  const cerca = (fino, filtro) => {
+    for (let i = p + 1; i <= fino; i += 1) if (suona(i) && filtro(i)) return i;
+    return -1;
+  };
+  const ultima = acc.tasti.length - 1;
+  const alternato = [
+    cerca(ULTIMA_CORDA_DEL_POLLICE, eQuinta),
+    cerca(ULTIMA_CORDA_DEL_POLLICE, () => true),
+    cerca(ultima, eQuinta),
+    cerca(ultima, () => true),
+  ].find((i) => i >= 0);
+
+  return { p, P: alternato === undefined ? p : alternato };
 }

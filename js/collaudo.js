@@ -9,7 +9,7 @@
 
 import {
   ACCORDI, CORDE, NUMERI_CORDA, CORDE_SEMITONI, verificaDiteggiatura, nomeCanonico, accordo,
-  ditaRichieste, etichettaDita, bassiDi, cordeSmorzate,
+  ditaRichieste, etichettaDita, bassiDi, cordeSmorzate, ULTIMA_CORDA_DEL_POLLICE,
 } from './chords.js';
 import { icona, ICONA_PASSO } from './icone.js';
 import { RITMI, etichette, cordeDiCasella, classeDito, usaBassoAlternato } from './patterns.js';
@@ -177,8 +177,73 @@ gruppo('Ritmi — la griglia torna', (t) => {
         t.ok(`${r.id}: il basso alternato va su un'altra corda`, bassi.p !== bassi.P,
           `p=${bassi.p} P=${bassi.P}`);
       }
+      // Due dita non possono stare sulla STESSA corda nello stesso istante. Vale solo
+      // dentro una casella (il pizzico 'p+a'): che il pollice e l'indice si passino la
+      // 3ª corda in momenti diversi e normale — sul Re la 6ª e la 5ª non suonano proprio,
+      // e l'alternanza 4ª–3ª e quella che fanno tutti.
+      if (r.tipo === 'dita') {
+        ['E', 'Em', 'A', 'Am', 'G', 'C', 'D', 'Dm', 'F'].forEach((id) => {
+          const bassi = bassiDi(accordo(id));
+          const sovrapposte = r.slot.filter((casella) => {
+            const corde = cordeDiCasella(casella, bassi);
+            return corde.length > 1 && new Set(corde).size !== corde.length;
+          });
+          t.ok(`${r.id} su ${id}: nessuna casella mette due dita sulla stessa corda`,
+            sovrapposte.length === 0, sovrapposte.join(' '));
+        });
+      }
     }
     t.ok(`${r.id}: ha una spiegazione`, !!r.testo && r.testo.length > 30);
+  });
+});
+
+// ── B2. I bassi del pollice ──────────────────────────────────────────────────
+
+gruppo('Bassi — il pollice va dove lo manderebbe un insegnante', (t) => {
+  // Queste coppie non sono un'opinione: sono quello che si legge in qualunque metodo di
+  // fingerpicking. Se un giorno la regola in `bassiDi` cambia e queste cambiano con lei,
+  // vuol dire che ha smesso di descrivere la chitarra.
+  const attesi = [
+    ['E', 0, 1], ['Em', 0, 1], ['E7', 0, 1], ['Em7', 0, 1],
+    ['A', 1, 2], ['Am', 1, 2], ['A7', 1, 2], ['Am7', 1, 2],
+    ['G', 0, 2], ['G7', 0, 2],
+    ['C', 1, 2], ['Cmaj7', 1, 2],
+    ['D', 2, 3], ['Dm', 2, 3], ['D7', 2, 3],
+    ['F', 0, 1], ['Fm', 0, 1], ['Bm', 1, 2],
+  ];
+  attesi.forEach(([id, p, P]) => {
+    const acc = accordo(id);
+    const bassi = bassiDi(acc);
+    t.uguale(`${id}: pollice su ${NUMERI_CORDA[p]} e ${NUMERI_CORDA[P]}`, [bassi.p, bassi.P], [p, P]);
+  });
+
+  // Il pollice resta nella SUA zona (6ª, 5ª, 4ª) tutte le volte che puo.
+  //
+  // E l'invariante che il Do violava: la sua quinta (Sol) sta sulla 3ª, che e dell'indice.
+  // L'eccezione ammessa e dichiarata: gli accordi che di corde gravi ne fanno suonare una
+  // sola — il Re, il Re minore — dove uscire dalla zona non e una scelta ma l'unica strada.
+  ACCORDI.forEach((a) => {
+    const { p, P } = bassiDi(a);
+    const graviCheSuonano = a.tasti.slice(0, ULTIMA_CORDA_DEL_POLLICE + 1).filter((x) => x >= 0).length;
+    if (graviCheSuonano < 2) return;
+    t.ok(`${a.id}: il basso alternato resta fra le corde del pollice`,
+      P <= ULTIMA_CORDA_DEL_POLLICE,
+      `p=${NUMERI_CORDA[p]}, P=${NUMERI_CORDA[P]} — la ${NUMERI_CORDA[P]} appartiene a un altro dito`);
+  });
+
+  // Nessun accordo deve mandare il pollice su una corda che non suona.
+  ACCORDI.forEach((a) => {
+    const { p, P } = bassiDi(a);
+    t.ok(`${a.id}: il pollice sta su corde che suonano`, a.tasti[p] >= 0 && a.tasti[P] >= 0,
+      `p=${p} (${a.tasti[p]}), P=${P} (${a.tasti[P]})`);
+  });
+
+  // E il basso principale deve essere la corda piu grave che suona: se il pollice
+  // partisse piu in alto, il basso dell'accordo semplicemente non si sentirebbe.
+  ACCORDI.forEach((a) => {
+    const { p } = bassiDi(a);
+    t.ok(`${a.id}: il basso e la corda piu grave che suona`,
+      a.tasti.slice(0, p).every((x) => x < 0), `p=${p} su ${JSON.stringify(a.tasti)}`);
   });
 });
 
@@ -1260,10 +1325,15 @@ gruppo('Ascolto vivo — misura davvero quando penni', (t) => {
 
       // Se il browser ha strozzato i timer (pagina in secondo piano) la prova non è
       // valida: dirlo è meglio che segnare un rosso che non riguarda il codice.
+      // Questa non e una prova fallita: e una prova NON ESEGUIBILE, e la differenza va
+      // detta. Il browser porta i timer di una pagina nascosta a un colpo al secondo, e
+      // un attacco di pennata dura cinquanta millisecondi: con quella cadenza non si
+      // misura niente, per quanto il codice sia giusto. Misurato: 10 ms per giro a
+      // pagina visibile, esattamente 1000 a pagina nascosta.
       const cadenza = (c.currentTime - partenza) / Math.max(1, giri);
       if (cadenza > 0.04) {
         t.ok('ascolto vivo misurabile', false,
-          `il browser ha strozzato i tempi (${Math.round(cadenza * 1000)} ms per giro): tieni la pagina in primo piano e rifai le prove audio`);
+          `PROVA NON ESEGUITA, non fallita: il browser strozza i timer quando la pagina non e in vista (${Math.round(cadenza * 1000)} ms per giro invece di 10, scheda ${document.visibilityState}). Porta questa scheda in primo piano e premi "Rifai le prove audio".`);
         return;
       }
 

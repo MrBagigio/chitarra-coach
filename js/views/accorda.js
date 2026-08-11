@@ -15,6 +15,7 @@
 import { aggiungi, h, scheda, titoloPagina, bottone } from '../ui.js';
 import * as store from '../store.js';
 import { ACCORDATURE, accordatura } from '../tunings.js';
+import { NUMERI_CORDA } from '../chords.js';
 import {
   Rilevatore, hzDaMidi, nota, centesimi, decisioneDisplay, spuntaDaTogliere, msDentroFinestra,
 } from '../pitch.js';
@@ -158,13 +159,17 @@ export function monta(radice, ctx) {
             aggiornaModo();
           },
         },
-          h('strong', { testo: c.etichetta }),
+          // Il numero di corda, non solo la lettera: su una chitarra le corde chiamate
+          // "E" sono DUE, la 6ª e la 1ª, a due ottave di distanza. Distinguerle per la
+          // sola frequenza scritta piccola sotto è chiedere a chi impara di fare un
+          // conto che il programma può fare per lui.
+          h('strong', {}, h('span', { class: 'tn-numero', testo: NUMERI_CORDA[i] }), c.etichetta),
           h('small', { testo: `${c.hz.toFixed(1)} Hz` }),
           h('span', { class: 'tn-spunta', testo: fatte.has(i) ? '✓' : (maiFatte.has(i) ? '·' : '') })),
         h('button', {
           class: 'tn-corda-suona',
           type: 'button',
-          'aria-label': `Ascolta la nota ${c.etichetta}`,
+          'aria-label': `Ascolta la ${NUMERI_CORDA[i]} corda, ${c.etichetta}`,
           onclick: () => {
             sblocca();
             suonaNota(c.hz, 1.8);
@@ -294,7 +299,7 @@ export function monta(radice, ctx) {
     notaGrande.classList.remove('vuota');
     notaGrande.textContent = indice !== null ? lista[indice].etichetta : n.nome;
     notaIt.textContent = indice !== null
-      ? `corda ${lista[indice].etichetta} · ${nomeItaliano(lista[indice].etichetta)}`
+      ? `${NUMERI_CORDA[indice]} corda · ${nomeItaliano(lista[indice].etichetta)}`
       : `nota rilevata: ${nomeItaliano(n.nome)}${n.ottava ? ` (${n.nome}${n.ottava})` : ''}`;
     hzTesto.textContent = `${lettura.hz.toFixed(1)} Hz`;
 
@@ -404,7 +409,7 @@ export function monta(radice, ctx) {
     }
     if (maiFatte.size < acc.corde.length) {
       const mancano = acc.corde
-        .map((c, i) => (maiFatte.has(i) ? null : c.etichetta))
+        .map((c, i) => (maiFatte.has(i) ? null : `${NUMERI_CORDA[i]} (${c.etichetta})`))
         .filter(Boolean);
       esito.className = 'dim piccolo';
       esito.textContent = `${maiFatte.size} su ${acc.corde.length} — manca ${mancano.join(', ')}.`;

@@ -1,7 +1,7 @@
 {
-  "name": "Ukulele Coach",
-  "short_name": "Ukulele",
-  "description": "Accordatore e percorso di studio per ukulele: accordi con diagrammi, cambi a tempo, ritmi di pennata.",
+  "name": "Chitarra Coach",
+  "short_name": "Chitarra",
+  "description": "Accordatore e percorso di studio per chitarra acustica: accordi con diagrammi, barré, fingerpicking e verifica al microfono.",
   "lang": "it",
   "dir": "ltr",
   "start_url": "./",

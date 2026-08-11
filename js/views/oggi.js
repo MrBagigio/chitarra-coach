@@ -7,7 +7,7 @@ import { accordo, etichettaAccordo } from '../chords.js';
 import { diagramma } from '../diagram.js';
 import { icona } from '../icone.js';
 import * as ripasso from '../ripasso.js';
-import { ukuleleDisegnato, marchio } from '../illustrazione.js';
+import { chitarraDisegnata, marchio } from '../illustrazione.js';
 
 export function monta(radice, ctx) {
   const d = store.dati();
@@ -132,13 +132,13 @@ function schedaRipasso(d) {
 
 function benvenuto() {
   const box = scheda(
-    h('div', { class: 'benvenuto-testa' }, ukuleleDisegnato({ vibra: true, altezza: 150 })),
+    h('div', { class: 'benvenuto-testa' }, chitarraDisegnata({ vibra: true, altezza: 150 })),
     h('p', { class: 'occhiello', testo: 'Benvenuto' }),
     h('h2', { class: 'senza-margine', testo: 'Come funziona, in trenta secondi' }),
     h('ul', { class: 'elenco' },
       h('li', { testo: `Il Percorso ti dice cosa studiare oggi: ${curriculum.LIVELLI.length} livelli in cui ogni passo aggiunge una difficoltà sola.` }),
       h('li', { testo: 'Accorda prima di ogni sessione: bastano trenta secondi e ti salva l\'orecchio.' }),
-      h('li', { testo: 'Verifica usa il microfono per dirti se le quattro corde suonano davvero — è l\'errore che da soli non si sente.' }),
+      h('li', { testo: 'Verifica usa il microfono per dirti quale corda non sta suonando — è l\'errore che da soli non si sente.' }),
       h('li', { testo: 'Tutto resta su questo telefono. Nessun account, nessun dato in uscita, funziona anche senza rete.' })),
     h('button', {
       class: 'bottone', type: 'button', testo: 'Ho capito, cominciamo',

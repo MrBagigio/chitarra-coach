@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<title>Ukulele Coach — collaudo</title>
+<title>Chitarra Coach — collaudo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
 <link rel="stylesheet" href="css/app.css">
@@ -78,10 +78,12 @@
         ? `${falliti} prove fallite su ${totali}`
         : `Tutte e ${totali} le prove passano`;
       riassunto.style.color = falliti ? 'var(--rosso)' : 'var(--verde)';
-      // Le prove audio non partono senza un gesto dell'utente: se sono state saltate lo
-      // si dice e si offre il pulsante, invece di far sembrare rotto l'accordatore.
+      // Le prove audio non partono senza un gesto dell'utente, e non si misurano se la
+      // scheda e nascosta: in tutti e due i casi lo si dice e si offre il pulsante,
+      // invece di far sembrare rotto l'accordatore. Sono due condizioni dell'AMBIENTE,
+      // e confonderle con un difetto del programma manda a cercare nel posto sbagliato.
       const sospeso = [...document.querySelectorAll('.prova.no')]
-        .some((e) => e.textContent.includes('audio sospeso'));
+        .some((e) => /audio sospeso|PROVA NON ESEGUITA/.test(e.textContent));
       rifai.style.display = sospeso ? 'block' : 'none';
       window.__collaudo = { totali, falliti, audioSospeso: sospeso };
     });

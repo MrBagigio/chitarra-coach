@@ -1,5 +1,5 @@
-/* Ukulele Coach — foglio di stile unico, nessun font esterno.
-   Tema scuro caldo (l'ukulele è legno). Progettato sul 390×844 dell'iPhone 13 Pro:
+/* Chitarra Coach — foglio di stile unico, nessun font esterno.
+   Tema scuro caldo (la chitarra è legno). Progettato sul 390×844 dell'iPhone 13 Pro:
    niente hover come unico segnale, bersagli tattili da 44 px, aree sicure rispettate. */
 
 :root {
@@ -1120,4 +1120,17 @@ h2.ok { animation: battito .34s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Numero di corda nell'accordatore: sulla chitarra le corde "E" sono due, e la lettera
+   da sola non basta a dire quale hai pizzicato. Il numero sta piccolo e sopra la lettera,
+   così si legge "6ª E" senza rubarle il posto. */
+.tn-numero {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  line-height: 1;
+  margin-bottom: 2px;
 }

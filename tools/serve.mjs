@@ -42,4 +42,4 @@ createServer(async (req, res) => {
   } catch (e) {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' }).end(String(e));
   }
-}).listen(PORTA, () => console.log(`Ukulele Coach su http://localhost:${PORTA}`));
+}).listen(PORTA, () => console.log(`Chitarra Coach su http://localhost:${PORTA}`));

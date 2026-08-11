@@ -100,7 +100,7 @@ export function monta(radice, ctx) {
     scheda(
       h('p', { class: 'occhiello', testo: 'Accordatura' }),
       selAccordatura,
-      h('p', { class: 'dim piccolo', testo: 'I diagrammi degli accordi valgono per la standard GCEA. Con baritono o accordatura in Re restano validi accordatore, ritmi e metronomo, non le posizioni.' })),
+      h('p', { class: 'dim piccolo', testo: 'I diagrammi degli accordi valgono per la standard EADGBE. Il Drop D e il mezzo tono sotto non cambiano le forme, solo i nomi; con DADGAD e Open G restano validi accordatore, ritmi e metronomo, non le posizioni.' })),
 
     scheda(
       h('p', { class: 'occhiello', testo: 'Riferimento di intonazione' }),
@@ -137,7 +137,7 @@ export function monta(radice, ctx) {
       bottone('Azzera i miei progressi', () => chiediAzzeramento(radice, ctx), { classe: 'sottile pericolo' })),
 
     scheda(
-      h('p', { class: 'dim piccolo', testo: 'Ukulele Coach · pagina statica, nessun account, nessun dato in uscita. Accordatore: spettro con prodotto armonico e raffinamento per autocorrelazione. Verifica accordo: ricerca dei picchi alle frequenze attese.' })),
+      h('p', { class: 'dim piccolo', testo: 'Chitarra Coach · pagina statica, nessun account, nessun dato in uscita. Accordatore: spettro con prodotto armonico e raffinamento per autocorrelazione, provato fino al Mi basso di 82,41 Hz. Verifica accordo: ricerca dei picchi alle frequenze attese su una finestra di 8192 campioni — sotto, sulle corde gravi due note vicine si fondono in una sola.' })),
   );
   return null;
 }
@@ -153,7 +153,7 @@ function scaricaBackup() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `ukulele-coach-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `chitarra-coach-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();

@@ -14,7 +14,7 @@ import { posizioniDi, distanzaOttave } from '../voicing.js';
 import { diagramma, legendaDita, NOMI_DITA } from '../diagram.js';
 import { BRANI, accordiDi } from '../songs.js';
 import { RITMI, SIMBOLI, etichette } from '../patterns.js';
-import { accordatura } from '../tunings.js';
+import { accordatura, ID_DIAGRAMMI } from '../tunings.js';
 import { hzDaMidi } from '../pitch.js';
 import { sblocca, suonaPennata } from '../audio.js';
 import * as curriculum from '../curriculum.js';
@@ -81,7 +81,7 @@ function griglia(radice) {
   const conteggio = h('p', { class: 'dim piccolo' });
 
   aggiungi(radice, 
-    titoloPagina('Accordi', `${ACCORDI.length} diteggiature per accordatura standard GCEA, tutte verificate contro le note dell'accordo.`),
+    titoloPagina('Accordi', `${ACCORDI.length} diteggiature per accordatura standard EADGBE, tutte verificate contro le note dell'accordo.`),
     scheda(
       h('div', { class: 'griglia-scorciatoie' },
         h('a', { class: 'scorciatoia', href: '#/manico' },
@@ -208,8 +208,8 @@ function dettaglio(radice, ctx) {
         sblocca();
         suonaPennata(acc.tasti.map((t, i) => (t < 0 ? null : hzDaMidi(tun.corde[i].midi + t, d.la4))));
       }, { classe: 'grande' }),
-      tun.id !== 'gcea'
-        ? h('p', { class: 'avviso attenzione', testo: `Attenzione: hai scelto l'accordatura ${tun.nome}. I diagrammi valgono per la standard GCEA — su un'altra accordatura queste posizioni danno altre note.` })
+      tun.id !== ID_DIAGRAMMI
+        ? h('p', { class: 'avviso attenzione', testo: `Attenzione: hai scelto l'accordatura ${tun.nome}. I diagrammi valgono per la standard EADGBE — su un'altra accordatura queste posizioni danno altre note.` })
         : null),
 
     scheda(
@@ -280,7 +280,7 @@ function dettaglio(radice, ctx) {
  * sul manico e si tiene solo ciò che una mano può davvero premere.
  */
 function schedaPosizioni(acc, tun) {
-  if (tun.id !== 'gcea') return null;
+  if (tun.id !== ID_DIAGRAMMI) return null;
   const posizioni = posizioniDi(nomeCanonico(acc), {
     midiCorde: tun.corde.map((c) => c.midi),
     limite: 5,

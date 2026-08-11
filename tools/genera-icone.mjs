@@ -43,22 +43,26 @@ function colore(x, y, { mascherabile }) {
     if (px < 0 || px > 100 || py < 0 || py > 100) return SFONDO;
   }
 
-  const corpo = dist(px, py, 50, 68) <= 25.5 || dist(px, py, 50, 43) <= 18.5;
-  const manico = Math.abs(px - 50) <= 6.2 && py >= 9 && py <= 46;
-  const paletta = Math.abs(px - 50) <= 8.6 && py >= 6 && py <= 13;
+  // Sagoma da chitarra: lobo inferiore largo, superiore più stretto, vita marcata.
+  // Le stesse proporzioni dell'illustrazione in `illustrazione.js` — a un'icona di 180
+  // pixel non si legge il numero delle corde, si legge la SILHOUETTE, ed è quella che
+  // deve dire "chitarra" invece di "ukulele" a colpo d'occhio nella schermata Home.
+  const corpo = dist(px, py, 50, 74) <= 25.0 || dist(px, py, 50, 49) <= 17.0;
+  const manico = Math.abs(px - 50) <= 5.6 && py >= 7 && py <= 52;
+  const paletta = Math.abs(px - 50) <= 8.4 && py >= 3 && py <= 11;
 
-  if (!corpo && !manico && !paletta) return mascherabile ? SFONDO : SFONDO;
+  if (!corpo && !manico && !paletta) return SFONDO;
 
   // Dettagli scuri sopra il legno, nell'ordine in cui li vedi.
-  if (dist(px, py, 50, 62) <= 8.6) return BUIO;                                  // buca
-  if (Math.abs(py - 74.5) <= 1.6 && Math.abs(px - 50) <= 10) return LEGNO_SCURO; // ponticello
-  for (const t of [17.5, 24.5, 31.5, 38.5]) {                                    // tasti
-    if (Math.abs(py - t) <= 0.7 && Math.abs(px - 50) <= 6.2) return LEGNO_SCURO;
+  if (dist(px, py, 50, 68) <= 8.4) return BUIO;                                  // buca
+  if (Math.abs(py - 82) <= 1.7 && Math.abs(px - 50) <= 11) return LEGNO_SCURO;   // ponticello
+  for (const t of [15, 22, 29, 36, 43, 50]) {                                        // tasti
+    if (Math.abs(py - t) <= 0.7 && Math.abs(px - 50) <= 5.6) return LEGNO_SCURO;
   }
-  for (const cx of [46.4, 48.8, 51.2, 53.6]) {                                   // corde
-    if (Math.abs(px - cx) <= 0.42 && py >= 10 && py <= 74) return CORDA;
+  for (const cx of [46.9, 48.1, 49.4, 50.6, 51.9, 53.1]) {                       // sei corde
+    if (Math.abs(px - cx) <= 0.3 && py >= 7 && py <= 82) return CORDA;
   }
-  if (corpo && dist(px, py, 50, 68) > 24 && dist(px, py, 50, 43) > 17) return LEGNO_SCURO;
+  if (corpo && dist(px, py, 50, 74) > 23.5 && dist(px, py, 50, 49) > 15.5) return LEGNO_SCURO;
   return manico || paletta ? LEGNO_SCURO : LEGNO;
 }
 

@@ -1,11 +1,11 @@
 // Stato salvato sul telefono. Nessun server: se il localStorage non è disponibile
 // (Safari in navigazione privata) l'app funziona comunque, solo non ricorda.
 
-const CHIAVE = 'ukulele-coach/v1';
+const CHIAVE = 'chitarra-coach/v1';
 
 const VUOTO = () => ({
   versione: 3,
-  accordatura: 'gcea',
+  accordatura: 'eadgbe',
   la4: 440,
   tema: 'scuro',
   obiettivoMinuti: 10,
@@ -156,7 +156,7 @@ export function ultimiGiorni(n = 14) {
 // spariscono. Questo è l'unico modo per portarli via, e va detto invece di scoprirlo dopo.
 
 export function esporta() {
-  return JSON.stringify({ app: 'ukulele-coach', esportatoIl: new Date().toISOString(), dati: dati() }, null, 2);
+  return JSON.stringify({ app: 'chitarra-coach', esportatoIl: new Date().toISOString(), dati: dati() }, null, 2);
 }
 
 /** @returns {{ok:boolean, motivo:string}} */
@@ -167,9 +167,9 @@ export function importa(testo) {
   } catch {
     return { ok: false, motivo: 'Non è un file di backup valido (JSON illeggibile).' };
   }
-  const corpo = letto && letto.app === 'ukulele-coach' ? letto.dati : letto;
+  const corpo = letto && letto.app === 'chitarra-coach' ? letto.dati : letto;
   if (!corpo || typeof corpo !== 'object' || !('passiFatti' in corpo)) {
-    return { ok: false, motivo: 'Il file non contiene un avanzamento di Ukulele Coach.' };
+    return { ok: false, motivo: 'Il file non contiene un avanzamento di Chitarra Coach.' };
   }
   stato = { ...VUOTO(), ...corpo };
   salva();

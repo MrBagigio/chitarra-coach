@@ -2,9 +2,9 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<title>Ukulele Coach</title>
+<title>Chitarra Coach</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Accordatore e percorso di studio per ukulele: accordi con diagrammi, cambi a tempo, ritmi di pennata. Funziona senza rete.">
+<meta name="description" content="Accordatore e percorso di studio per chitarra acustica: accordi con diagrammi, barré, fingerpicking e verifica al microfono. Funziona senza rete.">
 <meta name="theme-color" content="#14100d">
 <meta name="color-scheme" content="dark light">
 
@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Ukulele">
+<meta name="apple-mobile-web-app-title" content="Chitarra">
 <meta name="format-detection" content="telephone=no">
 
 <link rel="manifest" href="app.webmanifest">
@@ -46,7 +46,7 @@
 // Questo script è inline dentro index.html, che per le navigazioni si prende sempre dalla
 // rete: quindi è l'unico pezzo di codice garantito aggiornato, e può rimediare.
 (function () {
-  var CHIAVE = 'uke-riparazione';
+  var CHIAVE = 'chit-riparazione';
   function riparaUnaVolta(motivo) {
     if (sessionStorage.getItem(CHIAVE)) return;      // una sola volta: mai un ciclo di ricariche
     sessionStorage.setItem(CHIAVE, motivo);
