@@ -18,7 +18,7 @@
 // non risponde, parte comunque tutto. Costa una manciata di millisecondi all'avvio: per
 // 31 file statici è un prezzo onesto.
 
-const VERSIONE = 'chit-v8';
+const VERSIONE = 'chit-v9';
 const ATTESA_RETE_MS = 2500;
 const RISORSE = [
   './',
@@ -30,6 +30,7 @@ const RISORSE = [
   'js/icone.js',
   'js/store.js',
   'js/audio.js',
+  'js/strumento.js',
   'js/pitch.js',
   'js/chroma.js',
   'js/ascoltoVivo.js',

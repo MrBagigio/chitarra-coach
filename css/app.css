@@ -1187,3 +1187,9 @@ h2.ok { animation: battito .34s ease-out; }
 }
 .tn-livello.scarso .tn-livello-barra { background: var(--dim); }
 .tn-livello.forte .tn-livello-barra { background: var(--ambra); }
+
+/* Il capotasto mobile sul manico: una barra dove sta, e la zona sotto spenta perche'
+   con il capotasto messo quei tasti non si raggiungono. I nomi delle note sopra di lui
+   restano quelli di sempre — un capotasto non cambia l'altezza di una nota premuta. */
+.m-capotasto-mobile { fill: var(--ambra); }
+.m-spenta { fill: var(--sfondo); opacity: 0.62; }

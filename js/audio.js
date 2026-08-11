@@ -6,6 +6,7 @@
 // riscrivono il segnale e un accordatore che misura un segnale riscritto misura il filtro.
 
 import { FFT_ACCORDO } from './chroma.js';
+import { STRUMENTO } from './strumento.js';
 
 let ctx = null;
 let micStream = null;
@@ -92,8 +93,11 @@ export function nuovoAnalizzatore({ fftSize = 1024, smoothing = 0 } = {}) {
  * L'analizzatore per giudicare un accordo. Un posto solo, e non è pedanteria.
  *
  * La dimensione della finestra qui non è un parametro di gusto: sotto quel valore le due
- * note gravi più vicine di una chitarra si fondono in un picco solo e il programma
- * dichiara mute delle corde che stanno suonando (vedi `FFT_ACCORDO` in chroma.js).
+ * note più vicine che lo strumento sa mettere in un accordo si fondono in un picco solo,
+ * e il programma dichiara mute delle corde che stanno suonando. Il conto — quali sono
+ * quelle due note, e quanti campioni servono per separarle — sta in `FFT_ACCORDO` dentro
+ * chroma.js, perché dipende dallo strumento.
+ *
  * Prima il numero era scritto a mano in tre viste diverse; bastava aggiornarne due per
  * lasciare in giro una schermata che accusa chi suona bene, senza nessun errore visibile.
  */
@@ -194,17 +198,9 @@ export function bufferCorda(hz, durata = 2.4, brillantezza = 0.5) {
   const tau = Math.max(0.9, Math.min(3.5, 2.6 * (220 / hz) ** 0.35));
   const smorzamento = Math.exp(-1 / (tau * hz));
 
-  // Eccitazione: la forma vera di una corda pizzicata, più un pizzico di rumore.
-  //
-  // Con il solo rumore — che è la ricetta classica — l'ampiezza della fondamentale è un
-  // sorteggio: ogni tanto esce debolissima e la nota si sente un'ottava sopra. È successo
-  // davvero, e il collaudo lo ha beccato perché ripete la misura a ogni caricamento.
-  // Una corda tirata da un dito parte a triangolo, con la punta nel punto del pizzico:
-  // quella forma la fondamentale ce l'ha sempre, e le armoniche dipendono da DOVE pizzichi.
-  // Dove pizzichi decide il timbro, e su una chitarra il punto è un altro: la mano sta
-  // sopra la buca, a circa un quinto della corda dal ponticello. Più vicino al ponte
-  // (0,26, il valore dell'ukulele) esce un suono nasale che una chitarra non fa.
-  const puntoPizzico = 0.2;
+  // Dove si pizzica decide il timbro, e il punto e' un dato dello strumento: vedi
+  // `puntoPizzico` in strumento.js.
+  const puntoPizzico = STRUMENTO.puntoPizzico;
   let precedente = 0;
   const avvio = Math.min(campioni, n + 2);
   for (let i = 0; i < avvio; i += 1) {
@@ -232,43 +228,31 @@ export function bufferCorda(hz, durata = 2.4, brillantezza = 0.5) {
 /**
  * Filtro che imita il corpo dello strumento: senza, la corda suona come un elastico.
  *
- * I numeri sono quelli di una cassa da chitarra acustica, non di una da ukulele, e uno
- * dei tre non era una questione di timbro ma un bug: il taglio dei bassi stava a 120 Hz.
- * Su un ukulele non toglie niente, perché la nota più grave è un Do a 261 Hz. Su una
- * chitarra il Mi basso sta a 82,41 Hz e il La a 110: quel filtro avrebbe scavato via
- * proprio le due corde che tutto il resto del programma è stato allargato per sentire.
- *
- * 100 Hz è la risonanza d'aria (Helmholtz) di una cassa da chitarra, 215 Hz quella del
- * piano armonico. Sono loro a dare il "petto" che un ukulele non ha.
+ * Le tre frequenze sono un dato dello strumento, non del motore: stanno in strumento.js
+ * con il motivo per cui valgono quello che valgono.
  */
 function cassa() {
   const c = contesto();
   const corpo = c.createBiquadFilter();
   corpo.type = 'peaking';
-  corpo.frequency.value = 100;
-  corpo.Q.value = 1.2;
-  corpo.gain.value = 5;
+  corpo.frequency.value = STRUMENTO.cassa.corpo;
+  corpo.Q.value = STRUMENTO.cassa.corpoQ;
+  corpo.gain.value = STRUMENTO.cassa.corpoGain;
   const aria = c.createBiquadFilter();
   aria.type = 'peaking';
-  aria.frequency.value = 215;
-  aria.Q.value = 1.0;
-  aria.gain.value = 3;
+  aria.frequency.value = STRUMENTO.cassa.aria;
+  aria.Q.value = STRUMENTO.cassa.ariaQ;
+  aria.gain.value = STRUMENTO.cassa.ariaGain;
   const taglio = c.createBiquadFilter();
   taglio.type = 'highpass';
-  taglio.frequency.value = 55;                    // sotto il Mi basso: toglie il rimbombo, non la nota
+  taglio.frequency.value = STRUMENTO.cassa.taglio;
   corpo.connect(aria).connect(taglio);
   return { ingresso: corpo, uscita: taglio };
 }
 
-/**
- * Suona una pennata: le corde partono sfalsate di pochi millisecondi, come quando la
- * mano attraversa le corde. Tutte insieme suonerebbe un organo.
- */
-// `ritardo` è il tempo fra una corda e la successiva. Sull'ukulele era 28 ms: con quattro
-// corde fa una spazzolata di 84 ms, che è giusta. Su sei corde farebbe 140 ms, cioè un
-// arpeggio lento travestito da pennata — e a 100 bpm si mangerebbe un quarto di battuta.
-// Una mano vera attraversa sei corde in 50–70 ms.
-export function suonaPennata(listaHz, { ritardo = 0.012, durata = 2.4, volume = 0.5, verso = 'giu' } = {}) {
+// `ritardo` e' il tempo fra una corda e la successiva, e dipende da quante corde ha lo
+// strumento: sta in strumento.js.
+export function suonaPennata(listaHz, { ritardo = STRUMENTO.ritardoPennata, durata = 2.4, volume = 0.5, verso = 'giu' } = {}) {
   const c = contesto();
   const t0 = c.currentTime + 0.02;
   const { ingresso, uscita } = cassa();
@@ -405,11 +389,11 @@ export class Metronomo {
   }
 
   /**
-   * Il click sta SOPRA la banda in cui l'app ascolta le corde (75–1100 Hz).
+   * Il click sta SOPRA la banda in cui l'app ascolta le corde (vedi chroma.js).
    *
    * Non è una scelta di gusto: se il metronomo suona dall'altoparlante mentre il
-   * microfono è aperto, il microfono lo sente. Un click a 880 Hz cade in mezzo alle
-   * fondamentali dello strumento e il programma lo conta come una pennata — l'esercizio
+   * microfono è aperto, il microfono lo sente. Un click che cade in mezzo alle
+   * fondamentali dello strumento verrebbe contato come una pennata — l'esercizio
    * risulterebbe suonato benissimo anche a strumento appoggiato sul tavolo.
    * A 2,6–3,5 kHz resta chiarissimo per l'orecchio e quasi assente dove si misura.
    */

@@ -108,6 +108,26 @@ export function monta(radice, ctx) {
     // disegnava senza errori, quindi nessun controllo automatico se n'era accorto: si
     // vedeva solo guardandola.
     const nCorde = tun.corde.length;
+
+    /**
+     * Il capotasto mobile sul manico, e la cosa che avevo capito male.
+     *
+     * Avevo detto che con il capotasto il manico mostra le note sbagliate. Non e' vero, e
+     * vale la pena scriverlo: un capotasto NON cambia l'altezza di una nota premuta sopra
+     * di lui. Il 5° tasto della 6ª corda e' un La con il capotasto e senza. Quello che
+     * cambia e' altro, e sono due cose:
+     *
+     *   la corda "a vuoto" non e' piu' a vuoto: suona il tasto dove sta il capotasto;
+     *   i tasti sotto il capotasto non esistono piu', non ci arrivi.
+     *
+     * Quindi i nomi delle note restano tutti giusti: manca solo dire dove sta il
+     * capotasto e spegnere quello che c'e' sotto.
+     */
+    const capo = d.capotasto || 0;
+    // Quale tasto suona davvero la colonna `t`: la colonna 0 e' la corda "a vuoto", che
+    // con il capotasto messo suona il tasto del capotasto.
+    const tastoSuonante = (t) => (t === 0 ? capo : t);
+    const raggiungibile = (t) => t === 0 || t >= capo;
     const ultima = nCorde - 1;
     const larghezza = padX + L * (TASTI + 1) + 12;
     const altezza = padY * 2 + H * ultima;
@@ -146,6 +166,17 @@ export function monta(radice, ctx) {
       et.textContent = tun.corde[c].etichetta;
       svg.appendChild(et);
     }
+    // La zona che il capotasto rende irraggiungibile, e il capotasto stesso.
+    if (capo > 0) {
+      svg.appendChild(el('rect', {
+        x: padX, y: padY - 10, width: L * capo, height: H * ultima + 20, class: 'm-spenta',
+      }));
+      svg.appendChild(el('rect', {
+        x: padX + L * capo - 4, y: padY - 10, width: 6, height: H * ultima + 20,
+        rx: 3, class: 'm-capotasto-mobile',
+      }));
+    }
+
     for (let t = 0; t <= TASTI; t += 1) {
       const n = el('text', { x: x(t), y: altezza - 4, class: 'm-numero' });
       n.textContent = String(t);
@@ -154,7 +185,8 @@ export function monta(radice, ctx) {
 
     for (let c = 0; c < nCorde; c += 1) {
       for (let t = 0; t <= TASTI; t += 1) {
-        const pc = (tun.corde[c].midi + t) % 12;
+        if (!raggiungibile(t)) continue;              // sotto il capotasto non ci arrivi
+        const pc = (tun.corde[c].midi + tastoSuonante(t)) % 12;
         if (!classi.has(pc)) continue;
         const gruppo = el('g', { class: `m-nota${pc === pcRadice ? ' radice' : ''}` });
         gruppo.appendChild(el('circle', { cx: x(t), cy: y(c), r: 11 }));
