@@ -33,6 +33,7 @@ import { AscoltoVivo, giudizioTempo, riepilogo } from './ascoltoVivo.js';
 import { leggiSpartito, eAccordo, salvaBrano } from './importa.js';
 import * as ripasso from './ripasso.js';
 import * as store from './store.js';
+import * as vManico from './views/manico.js';
 import { posizioniDi, distanzaOttave } from './voicing.js';
 
 const gruppi = [];
@@ -937,6 +938,50 @@ gruppo('Colore delle dita — ogni pallino tinto del suo dito', (t) => {
   ['--dito-1', '--dito-2', '--dito-3', '--dito-4', '--dito-p', '--su-dito'].forEach((v) => {
     t.ok(`${v} è definita`, stile.getPropertyValue(v).trim().length > 0);
   });
+});
+
+// -- H2b. Il manico disegna lo strumento che dice di disegnare --------------
+
+gruppo('Manico \u2014 disegna tutte le corde dello strumento', (t) => {
+  // Questa prova nasce da un difetto che era in produzione e che nessun controllo
+  // automatico aveva visto: la vista del manico dichiarava "accordatura Standard EADGBE"
+  // e disegnava QUATTRO corde, perche' il numero era scritto a mano in tre punti,
+  // ereditato dall'ukulele. Saltava la 2a e la 1a, cioe' proprio quelle su cui si suona
+  // la melodia.
+  //
+  // Il punto che vale la pena ricordare: la pagina si disegnava senza errori, e un giro
+  // automatico che controlla "la vista non e' vuota, non ci sono null a schermo, non
+  // scorre in orizzontale" la dichiarava a posto. Contare le corde e' l'unica domanda
+  // che distingue "si disegna" da "disegna la cosa giusta".
+  const radice = document.createElement('div');
+  let smonta = null;
+  try {
+    smonta = vManico.monta(radice, { parametri: {}, query: {}, vaiA() {} });
+  } catch (e) {
+    t.ok('la vista del manico si monta', false, String(e && e.message ? e.message : e));
+    return;
+  }
+
+  const tun = accordatura(store.dati().accordatura);
+  t.uguale(`il manico disegna ${tun.corde.length} corde`,
+    radice.querySelectorAll('.m-corda').length, tun.corde.length);
+  t.uguale('e ne etichetta altrettante',
+    radice.querySelectorAll('.m-etichetta').length, tun.corde.length);
+  t.uguale('le etichette sono quelle dell\u2019accordatura scelta',
+    [...radice.querySelectorAll('.m-etichetta')].map((e) => e.textContent),
+    tun.corde.map((c) => c.etichetta));
+
+  // Le corde devono essere equidistanti e il capotasto deve coprirle tutte: se il
+  // disegno cresce ma il capotasto no, si vede subito che qualcosa e' rimasto indietro.
+  const ys = [...radice.querySelectorAll('.m-corda')].map((l) => Number(l.getAttribute('y1')));
+  const passi = ys.slice(1).map((y, i) => y - ys[i]);
+  t.ok('le corde sono equidistanti', passi.every((d) => Math.abs(d - passi[0]) < 0.5), passi.join(' '));
+  const capo = radice.querySelector('.m-capotasto');
+  t.ok('il capotasto copre tutte le corde',
+    capo && Number(capo.getAttribute('height')) >= ys[ys.length - 1] - ys[0],
+    `capotasto ${capo && capo.getAttribute('height')}, corde da ${ys[0]} a ${ys[ys.length - 1]}`);
+
+  if (smonta) try { smonta(); } catch { /* la vista e' gia' andata */ }
 });
 
 // ── H3. La presenza non basta: le note estranee ──────────────────────────────

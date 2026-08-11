@@ -18,7 +18,7 @@
 // non risponde, parte comunque tutto. Costa una manciata di millisecondi all'avvio: per
 // 31 file statici è un prezzo onesto.
 
-const VERSIONE = 'chit-v3';
+const VERSIONE = 'chit-v4';
 const ATTESA_RETE_MS = 2500;
 const RISORSE = [
   './',
