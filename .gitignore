@@ -2,3 +2,4 @@ node_modules/
 package.json
 _*.mjs
 .claude/
+pages.json
