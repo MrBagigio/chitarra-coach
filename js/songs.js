@@ -136,6 +136,15 @@ export const BRANI = [
     testo: 'La stessa forma spostata di tonalità: la prova che nel blues contano i numeri, non i nomi.',
   },
   {
+    id: 'giro-basso-scendente',
+    titolo: 'Il basso che scende',
+    genere: 'giro',
+    bpm: 68,
+    battiti: 4,
+    battute: B('G D/F# Em D C G/B Am D'),
+    testo: 'Sopra cambiano gli accordi, sotto il basso scende un gradino alla volta: Sol · Fa# · Mi · Re · Do · Si · La · Fa#. È il gesto piu riconoscibile della chitarra pop, e non e un accordo nuovo da imparare: sono quelli che sai gia, con una corda diversa sotto. Suonalo lento e ascolta solo la corda piu grave.',
+  },
+  {
     id: 'giro-sospesi',
     titolo: 'Il Re che respira (Re · Resus4 · Resus2)',
     genere: 'giro',

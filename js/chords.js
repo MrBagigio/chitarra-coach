@@ -49,6 +49,29 @@ export const DOVE_CORDA = [
 /** Semitoni delle corde a vuoto rispetto a Do, per la verifica delle note. */
 export const CORDE_SEMITONI = [4, 9, 2, 7, 11, 4];
 
+/**
+ * Le altezze vere delle corde a vuoto, in numeri MIDI (Mi2 82,41 Hz = 40).
+ *
+ * Servono per una domanda che le sole classi di altezza non sanno rispondere: qual è la
+ * nota più GRAVE di una presa. Di solito è quella della corda più grave che suona, e per
+ * tutta la libreria scritta a mano è così — ma non sempre: in una presa alta la 5ª corda
+ * a vuoto (La2) suona sotto la 6ª premuta al 10° tasto (Re3). Il basso di un accordo è
+ * la nota più bassa che si sente, non quella che sta più a sinistra nel diagramma.
+ */
+export const CORDE_MIDI = [40, 45, 50, 55, 59, 64];
+
+/** La classe di altezza della nota più grave che una presa produce davvero. */
+export function classeDelBasso(tasti) {
+  let minimo = Infinity;
+  let classe = null;
+  tasti.forEach((t, i) => {
+    if (t < 0) return;
+    const altezza = CORDE_MIDI[i] + t;
+    if (altezza < minimo) { minimo = altezza; classe = (CORDE_SEMITONI[i] + t) % 12; }
+  });
+  return classe;
+}
+
 const A = (nome, esteso, tasti, dita, extra = {}) =>
   ({ id: nome, nome, esteso, tasti, dita, ...extra });
 
@@ -187,6 +210,37 @@ export const ACCORDI = [
   A('A-barre', 'La maggiore (barré al 5°)', [5, 7, 7, 6, 5, 5], [1, 3, 4, 2, 1, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'A', posizione: 'mobile', barre: { tasto: 5, da: 0, a: 5 } }),
   A('C-alto', 'Do maggiore (barré al 3°)', [-1, 3, 5, 5, 5, 3], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'C', posizione: 'mobile', barre: { tasto: 3, da: 1, a: 5 }, suggerimento: 'La forma del La col barré. Stesse note del Do aperto, un\'ottava di brillantezza in più.' }),
   A('D-alto', 'Re maggiore (barré al 5°)', [-1, 5, 7, 7, 7, 5], [0, 1, 2, 3, 4, 1], { difficolta: 5, famiglia: 'maggiore', alias: 'D', posizione: 'mobile', barre: { tasto: 5, da: 1, a: 5 } }),
+
+  // ── Con il basso dichiarato: il basso che cammina ───────────────────────────
+  //
+  // Il nome dopo la barra dice quale nota va SOTTO. Non sono accordi nuovi da imparare:
+  // sono quelli che sai già, con una corda diversa al basso — e quasi sempre costano un
+  // dito in più o in meno. Servono per una cosa sola, e si sente subito: il basso che
+  // scende di grado in grado mentre sopra gli accordi restano quelli. Sol, Re con il
+  // Fa♯ sotto, Mi minore: il basso fa Sol · Fa♯ · Mi, e la canzone sembra andare
+  // da qualche parte invece di saltare.
+  A('D/F#', 'Re maggiore con Fa# al basso', [2, 0, 0, 2, 3, 2], [4, 0, 0, 1, 3, 2], {
+    difficolta: 3,
+    famiglia: 'basso dichiarato',
+    suggerimento: 'Il Re di sempre più il mignolo (o il pollice, se ti sporge sopra il manico) sulla 6ª al 2° tasto. Fra Sol e Mi minore è il gradino che manca.',
+  }),
+  A('G/B', 'Sol maggiore con Si al basso', [-1, 2, 0, 0, 0, 3], [0, 1, 0, 0, 0, 3], {
+    difficolta: 2,
+    famiglia: 'basso dichiarato',
+    suggerimento: 'Due dita. È il Sol che scende verso il La minore senza far scendere anche te.',
+  }),
+  A('C/G', 'Do maggiore con Sol al basso', [3, 3, 2, 0, 1, 0], [3, 4, 2, 0, 1, 0], { difficolta: 4, famiglia: 'basso dichiarato' }),
+  A('C/E', 'Do maggiore con Mi al basso', [0, 3, 2, 0, 1, 0], [0, 3, 2, 0, 1, 0], {
+    difficolta: 3,
+    famiglia: 'basso dichiarato',
+    suggerimento: 'Il Do senza smorzare la 6ª: stessa mano sinistra, una corda in più. È il più economico di tutti.',
+  }),
+  A('D/A', 'Re maggiore con La al basso', [-1, 0, 0, 2, 3, 2], [0, 0, 0, 1, 3, 2], { difficolta: 2, famiglia: 'basso dichiarato' }),
+  A('Am/G', 'La minore con Sol al basso', [3, 0, 2, 2, 1, 0], [4, 0, 2, 3, 1, 0], { difficolta: 3, famiglia: 'basso dichiarato' }),
+  A('Em/B', 'Mi minore con Si al basso', [-1, 2, 2, 0, 0, 0], [0, 1, 2, 0, 0, 0], { difficolta: 2, famiglia: 'basso dichiarato' }),
+  A('F/C', 'Fa maggiore con Do al basso', [-1, 3, 3, 2, 1, 1], [0, 3, 4, 2, 1, 1], { difficolta: 4, famiglia: 'basso dichiarato', barre: { tasto: 1, da: 4, a: 5 } }),
+  A('G/D', 'Sol maggiore con Re al basso', [-1, -1, 0, 0, 0, 3], [0, 0, 0, 0, 0, 3], { difficolta: 1, famiglia: 'basso dichiarato', suggerimento: 'Un dito solo.' }),
+  A('A/C#', 'La maggiore con Do# al basso', [-1, 4, 2, 2, 2, 0], [0, 4, 1, 2, 3, 0], { difficolta: 3, famiglia: 'basso dichiarato' }),
 ];
 
 /**
@@ -257,14 +311,27 @@ export function verificaDiteggiatura(acc) {
     .filter((pc) => !suonate.has(pc) && !scusate.has(pc))
     .map((pc) => nomeClasse(pc));
   const estranee = [...suonate].filter((pc) => !atteso.ammesse.includes(pc)).map((pc) => nomeClasse(pc));
-  const ok = mancanti.length === 0 && estranee.length === 0;
+
+  // Il basso dichiarato dev'essere davvero AL BASSO.
+  //
+  // Controllare che la nota ci sia non basta e non basterebbe mai: un Re maggiore
+  // contiene già il Fa♯, quindi "D/F#" passerebbe con qualunque Re. Quello che lo rende
+  // un altro accordo è che il Fa♯ stia sotto tutto il resto — è lì che si sente il basso
+  // che scende. Quindi si guarda la corda più grave che suona, non l'insieme delle note.
+  const b = atteso.scomposto.basso;
+  const bassoVero = classeDelBasso(acc.tasti);
+  const bassoSbagliato = b !== null && b !== undefined && bassoVero !== b;
+
+  const ok = mancanti.length === 0 && estranee.length === 0 && !bassoSbagliato;
   return {
     ok,
     mancanti,
     estranee,
+    bassoSbagliato,
     motivo: ok ? 'coerente' : [
       mancanti.length ? `mancano ${mancanti.join(', ')}` : '',
       estranee.length ? `suonano note estranee ${estranee.join(', ')}` : '',
+      bassoSbagliato ? `il basso dovrebbe essere ${nomeClasse(b)} e invece è ${bassoVero === null ? 'niente' : nomeClasse(bassoVero)}` : '',
     ].filter(Boolean).join(' e '),
   };
 }

@@ -59,34 +59,70 @@ export const QUALITA = {
   m9: { nome: 'minore nona', intervalli: [0, 2, 3, 7, 10], omissibili: [0, 7] },
 };
 
-/** Scompone "F#m7" in {fondamentale: 6, qualita: 'm7'}. null se il nome non si legge. */
+/**
+ * Scompone "F#m7" in {fondamentale: 6, qualita: 'm7'}. null se il nome non si legge.
+ *
+ * Legge anche gli accordi con il BASSO DICHIARATO — "D/F#", "G/B", "C/E" — che prima
+ * tornavano null, cioè non esistevano per il programma. Non sono un dettaglio da
+ * completisti: il basso che scende di grado in grado sotto accordi che restano fermi è
+ * il gesto più riconoscibile della chitarra pop, e senza saper leggere quel nome non si
+ * poteva né metterlo in un giro né disegnarlo.
+ */
 export function scomponi(nomeAccordo) {
-  const m = /^([A-G][#♯b♭]?)(.*)$/.exec(String(nomeAccordo).trim());
+  const testo = String(nomeAccordo).trim();
+  const barra = testo.indexOf('/');
+  const parteAccordo = barra < 0 ? testo : testo.slice(0, barra);
+  const parteBasso = barra < 0 ? null : testo.slice(barra + 1);
+
+  const m = /^([A-G][#♯b♭]?)(.*)$/.exec(parteAccordo);
   if (!m) return null;
   const pc = classeNota(m[1].replace('♯', '#').replace('♭', 'b'));
   if (pc === null) return null;
   const coda = m[2].replace(/^maj$/, 'maj7').replace('Δ', 'maj7');
   if (!(coda in QUALITA)) return null;
-  return { fondamentale: pc, nomeFondamentale: m[1], qualita: coda, ...QUALITA[coda] };
-}
 
-/** Le classi di altezza che un accordo DEVE contenere. */
-export function classiAttese(nomeAccordo) {
-  const s = scomponi(nomeAccordo);
-  if (!s) return null;
+  let basso = null;
+  if (parteBasso !== null) {
+    basso = classeNota(parteBasso.replace('♯', '#').replace('♭', 'b'));
+    if (basso === null) return null;         // "C/pippo" non è un accordo
+  }
+
   return {
-    obbligatorie: s.intervalli.filter((i) => !s.omissibili.includes(i))
-      .map((i) => (s.fondamentale + i) % 12),
-    ammesse: s.intervalli.map((i) => (s.fondamentale + i) % 12),
-    scomposto: s,
+    fondamentale: pc,
+    nomeFondamentale: m[1],
+    qualita: coda,
+    ...QUALITA[coda],
+    basso,
+    nomeBasso: parteBasso,
   };
 }
 
-/** Trasporta un nome di accordo di N semitoni, mantenendo la qualità. */
+/**
+ * Le classi di altezza che un accordo DEVE contenere.
+ *
+ * Il basso dichiarato entra fra le obbligatorie, non solo fra le ammesse: un Re con il
+ * Fa♯ sotto è un accordo diverso da un Re, ed è proprio quella nota a farlo. Se mancasse,
+ * quello che resta è un altro accordo — quindi pretenderla è la cosa giusta.
+ */
+export function classiAttese(nomeAccordo) {
+  const s = scomponi(nomeAccordo);
+  if (!s) return null;
+  const obbligatorie = s.intervalli.filter((i) => !s.omissibili.includes(i))
+    .map((i) => (s.fondamentale + i) % 12);
+  const ammesse = s.intervalli.map((i) => (s.fondamentale + i) % 12);
+  if (s.basso !== null) {
+    if (!ammesse.includes(s.basso)) ammesse.push(s.basso);
+    if (!obbligatorie.includes(s.basso)) obbligatorie.push(s.basso);
+  }
+  return { obbligatorie, ammesse, scomposto: s };
+}
+
+/** Trasporta un nome di accordo di N semitoni, mantenendo la qualità e il basso. */
 export function trasponi(nomeAccordo, semitoni, bemolli = false) {
   const s = scomponi(nomeAccordo);
   if (!s) return nomeAccordo;
-  return nomeClasse(s.fondamentale + semitoni, bemolli) + s.qualita;
+  const base = nomeClasse(s.fondamentale + semitoni, bemolli) + s.qualita;
+  return s.basso === null ? base : `${base}/${nomeClasse(s.basso + semitoni, bemolli)}`;
 }
 
 // ── Scale e gradi ────────────────────────────────────────────────────────────

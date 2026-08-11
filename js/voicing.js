@@ -103,6 +103,7 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
   const ammesse = new Set(atteso.ammesse);
   const obbligatorie = atteso.obbligatorie;
   const fondamentale = atteso.scomposto.fondamentale;
+  const bassoRichiesto = atteso.scomposto.basso ?? null;
 
   // Candidati per corda: ogni tasto che dia una nota dell'accordo, più il silenzio.
   // Il −1 non c'era: senza, sulla chitarra non si sarebbe potuto generare nemmeno il Do
@@ -127,6 +128,10 @@ export function posizioniDi(nomeAccordo, { corde = CORDE_SEMITONI, midiCorde = [
       }
       const suonate = new Set(classiDi(presa, corde));
       if (!obbligatorie.every((pc) => suonate.has(pc))) return;
+      // Se il nome dichiara un basso, la corda più grave deve produrlo: cercare forme
+      // che contengono la nota da qualche parte darebbe dei Re normali spacciati per
+      // Re con il Fa♯ sotto, che è precisamente la differenza fra i due accordi.
+      if (bassoRichiesto !== null && bassoE(presa, corde, midiCorde) !== bassoRichiesto) return;
       const { dita, barre } = costoDita(presa);
       if (dita > MAX_DITA) return;
 

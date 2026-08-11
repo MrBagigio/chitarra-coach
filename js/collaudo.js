@@ -10,7 +10,7 @@
 import {
   ACCORDI, CORDE, NUMERI_CORDA, CORDE_SEMITONI, verificaDiteggiatura, nomeCanonico, accordo,
   ditaRichieste, etichettaDita, bassiDi, cordeSmorzate, ULTIMA_CORDA_DEL_POLLICE,
-  SPESSORE_CORDA, DOVE_CORDA,
+  SPESSORE_CORDA, DOVE_CORDA, classeDelBasso,
 } from './chords.js';
 import { icona, ICONA_PASSO } from './icone.js';
 import { RITMI, etichette, cordeDiCasella, classeDito, usaBassoAlternato } from './patterns.js';
@@ -213,6 +213,51 @@ gruppo('Ritmi — la griglia torna', (t) => {
       }
     }
     t.ok(`${r.id}: ha una spiegazione`, !!r.testo && r.testo.length > 30);
+  });
+});
+
+// -- A2. Gli accordi con il basso dichiarato ---------------------------------
+
+gruppo('Basso dichiarato \u2014 la nota dopo la barra sta davvero sotto', (t) => {
+  // "D/F#" non e un Re con una nota in piu: e un Re con il Fa# SOTTO tutto il resto.
+  // La differenza non e quali note ci sono - un Re maggiore il Fa# ce l'ha gia - ma
+  // quale sta al basso, ed e l'unica cosa che si sente. Un controllo di sola presenza
+  // qui non direbbe niente, perche passerebbe qualunque Re.
+  const conBasso = ACCORDI.filter((a) => scomponi(nomeCanonico(a))?.basso !== null
+    && scomponi(nomeCanonico(a))?.basso !== undefined);
+  t.ok('in libreria ci sono accordi col basso dichiarato', conBasso.length >= 8, `${conBasso.length}`);
+
+  conBasso.forEach((a) => {
+    const s = scomponi(nomeCanonico(a));
+    const bassoVero = classeDelBasso(a.tasti);
+    t.uguale(`${a.id}: la corda piu grave che suona e ${nomeClasse(s.basso)}`,
+      nomeClasse(bassoVero), nomeClasse(s.basso));
+  });
+
+  // Il controllo deve MORDERE: un accordo normale spacciato per uno col basso dichiarato
+  // dev'essere respinto. Se un giorno questa prova diventa verde al contrario, vuol dire
+  // che la regola non sta piu guardando il basso.
+  const reNormale = accordo('D');
+  const finto = { id: 'D/F#', tasti: reNormale.tasti, dita: reNormale.dita };
+  const esito = verificaDiteggiatura(finto);
+  t.ok('un Re normale non passa per Re/Fa#', !esito.ok, esito.motivo);
+  t.ok('e il motivo dice che il problema e il basso', /basso/.test(esito.motivo), esito.motivo);
+
+  // Il nome si legge, si trasporta e resta un accordo col basso.
+  t.uguale('D/F# trasportato di due semitoni', trasponi('D/F#', 2), 'E/G#');
+  t.uguale('G/B trasportato di cinque', trasponi('G/B', 5), 'C/E');
+  t.ok('un basso che non e una nota non si legge', scomponi('C/pippo') === null);
+
+  // Anche le posizioni CERCATE devono rispettare il basso: la ricerca genera forme, e
+  // senza il vincolo produrrebbe dei Re normali chiamandoli Re/Fa#.
+  conBasso.slice(0, 6).forEach((a) => {
+    const nome = nomeCanonico(a);
+    const s = scomponi(nome);
+    const trovate = posizioniDi(nome, { midiCorde: accordatura('eadgbe').corde.map((c) => c.midi), limite: 4 });
+    t.ok(`${nome}: la ricerca trova almeno una posizione`, trovate.length >= 1, `${trovate.length}`);
+    const sbagliate = trovate.filter((v) => classeDelBasso(v.tasti) !== s.basso);
+    t.ok(`${nome}: ogni posizione trovata ha ${nomeClasse(s.basso)} al basso`, sbagliate.length === 0,
+      sbagliate.map((v) => v.tasti.join('')).join(' '));
   });
 });
 
